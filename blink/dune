@@ -1,0 +1,5 @@
+(executable
+ (name blink)
+ (libraries hardcaml)
+ (preprocess
+  (pps ppx_hardcaml)))
