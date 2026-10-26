@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Language policy (ASCII only)
+        run: scripts/check_ascii.sh
+
+      - name: Commit messages are ASCII
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          if git log --format=%B "origin/${{ github.base_ref }}..HEAD" \
+               | LC_ALL=C grep -nP '[^\x00-\x7F]'; then
+            echo "ERROR: non-ASCII characters in commit messages"; exit 1
+          fi
+
+      - name: Install FPGA tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yosys nextpnr-ice40 fpga-icestorm \
+            fpga-icestorm-chipdb verilator libgmp-dev libffi-dev pkg-config
+
+      - uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 5.3.0
+
+      - name: Install OCaml packages
+        run: >
+          opam install -y dune hardcaml ppx_hardcaml hardcaml_waveterm
+          hardcaml_verilator ppx_jane ppx_expect
+
+      - name: Test ladder (S1-S3)
+        run: opam exec -- make ci

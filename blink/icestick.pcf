@@ -1,4 +1,5 @@
-set_io clk 21
+# iCEstick: 12 MHz oscillator and the five user LEDs (D1..D5).
+set_io clock 21
 set_io led[0] 99
 set_io led[1] 98
 set_io led[2] 97

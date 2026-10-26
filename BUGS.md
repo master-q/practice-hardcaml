@@ -1,0 +1,94 @@
+# Defect ledger
+
+This file is the experiment's data. Every hardware defect found in this
+repository is recorded here, whichever stage found it, so that at the end we
+can answer: how many defects did the cheap HardCaml stages catch, and what
+kinds of defect only the expensive stages could find?
+
+Testbench, toolchain and golden-model defects are recorded too, in their own
+category, because they cost iterations just the same.
+
+## Stages
+
+| Stage | Tool | Typical cost |
+|-------|------|--------------|
+| S1 | Cyclesim expect tests, OCaml golden model (`make test`) | seconds |
+| S2 | Same benches on Verilator (`make verilate`) | tens of seconds |
+| S3 | Yosys + nextpnr: resources, timing, naming (`make synth names`) | seconds |
+| S4 | iCEstick hardware (`make -C <project> prog`) | minutes, manual |
+
+## Fields
+
+- **Found at**: the stage where the defect was first observed.
+- **Catchable at**: the cheapest stage that can reproduce it, after the
+  regression test was added. If this is S4, explain why no cheaper stage can.
+- **Class**: one of `logic` (wrong function), `timing` (handshake or
+  off-by-one cycle), `reset/init`, `x-propagation`, `clocking`, `io/pinout`,
+  `resource` (does not fit), `fmax`, `inference` (BRAM/DSP not inferred as
+  intended), `naming`, `testbench`, `model`, `toolchain`.
+- **Regression**: the test that now catches it.
+
+## Summary
+
+| Found at | Count |
+|----------|-------|
+| S1 | 2 |
+| S2 | 0 |
+| S3 | 1 |
+| S4 | 0 |
+
+## Entries
+
+### B-0003: anonymous combinational `reg` misread as a flip-flop
+
+- Date: 2026-10-26
+- Project: uart (scripts/check_names.sh)
+- Found at: S3 (`make names`); Catchable at: S3
+- Class: toolchain (our own check)
+- Symptom: the first naming check flagged `reg [7:0] _71` in the hello top.
+- Cause: HardCaml emits a multiplexer (the message ROM) as a combinational
+  `always` block with a `reg` declaration. The check counted `reg`
+  declarations instead of flip-flops.
+- Fix: the check now looks at targets of non-blocking assignments; the ROM
+  output was also named `tx_byte`.
+- Regression: none automated; `scripts/check_names.sh` header documents it.
+
+### B-0002: assembler range-checked shift amounts as registers
+
+- Date: 2026-10-26
+- Project: rv32_model (asm.ml)
+- Found at: S1; Catchable at: S1
+- Class: model
+- Symptom: `Asm.srai 6 5 4` and `srai 5 6 31` raised "RV32E has no x28/x31".
+- Cause: `slli/srli/srai` reused the R-type encoder, which validates the
+  rs2 field as an RV32E register, but that field holds the shift amount.
+- Fix: dedicated `shift_imm` encoder.
+- Regression: `rv32_model/test/test_machine.ml` "arithmetic ..." and
+  "assembler round-trips ..." tests.
+
+### B-0001: testbench sampled `ready` one cycle late
+
+- Date: 2026-10-26
+- Project: uart
+- Found at: S1; Catchable at: S1
+- Class: testbench
+- Symptom: sending "OK\n" decoded as "O\n".
+- Cause: the bench read outputs with `Cyclesim.outputs ~clock_edge:Before`,
+  i.e. the values from before the last clock edge, so it saw the
+  transmitter still idle and pushed "K" in the cycle the transmitter had
+  already started on "O"; the byte was dropped.
+- Fix: read outputs after the edge (the default).
+- Regression: `uart/test/test_uart.ml` "uart_tx sends queued bytes back to back".
+
+## Template
+
+    ### B-NNNN: <one-line title>
+
+    - Date:
+    - Project:
+    - Found at: S?; Catchable at: S?
+    - Class:
+    - Symptom:
+    - Cause:
+    - Fix:
+    - Regression:
