@@ -31,10 +31,15 @@ evidence; `docs/WORKFLOW.md` describes the method.
   its project's `test/` directory before it goes to the board. Testbenches
   live in a library that takes a `Cyclesim.t`, so the same bench also runs on
   Verilator (see `uart/bench`).
-- **Every defect is recorded in `BUGS.md`**, with the cheapest stage that
-  could have caught it. A bug first seen on Verilator or the board must get a
-  regression test at the cheapest stage that can reproduce it, or an
-  explanation of why none can.
+- **Every defect is recorded in `BUGS.md`, at every stage, S0 and S1
+  included.** This covers failures you hit and fix yourself while developing,
+  before anything is committed: a failing expect test, a width error from
+  HardCaml elaboration, a golden-model mismatch. Cheap-stage catches are the
+  experiment's main data; leaving them out makes the cheap stages look
+  useless. Not recorded: OCaml syntax errors and API misuse (wrong function
+  name or argument labels); count those only in `HISTORY.md` if notable.
+  A defect first seen at S2 or later must get a regression test at the
+  cheapest stage that can reproduce it, or an explanation of why none can.
 - **Keep `HISTORY.md` up to date.** Add a dated entry with the gist of each
   working session: what was done, what was learned, measured numbers.
   Newest entry first. Do not turn `README.md` into a log.

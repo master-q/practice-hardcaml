@@ -73,6 +73,7 @@ or from the golden model), as done in `rv32_model/test`.
 
 | Stage | What | Command | Runs |
 |-------|------|---------|------|
+| S0 | OCaml type check, HardCaml elaboration checks | `dune build` | every change |
 | S1 | Cyclesim expect tests; OCaml golden model | `make test` | every change |
 | S2 | the same benches on Verilator | `make verilate` | before pushing; in CI |
 | S3 | Yosys + nextpnr (LCs, Fmax), naming check | `make synth names` | every change |
@@ -97,6 +98,8 @@ simulation/synthesis mismatches unlikely.
 
 ### Iteration rules
 
+- Every defect goes into `BUGS.md`, including those caught at S0/S1
+  during development before a commit.
 - A defect seen at S2 or S4 gets a regression test at the cheapest stage
   that reproduces it, and a `BUGS.md` entry with "found at" and "catchable
   at". Defects that remain catchable only at S4 are the experiment's answer.
