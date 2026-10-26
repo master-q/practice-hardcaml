@@ -40,6 +40,9 @@ evidence; `docs/WORKFLOW.md` describes the method.
   name or argument labels); count those only in `HISTORY.md` if notable.
   A defect first seen at S2 or later must get a regression test at the
   cheapest stage that can reproduce it, or an explanation of why none can.
+- **Push directly to `main`** (maintainer, 2026-10-26). No feature branch
+  or pull request is needed; run `make` (or `make ci`) before pushing so
+  `main` stays green.
 - **Keep `HISTORY.md` up to date.** Add a dated entry with the gist of each
   working session: what was done, what was learned, measured numbers.
   Newest entry first. Do not turn `README.md` into a log.

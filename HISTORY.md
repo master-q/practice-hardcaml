@@ -40,6 +40,7 @@ done, what was learned, and the numbers measured that day.
   (modelled on takibi-lang/takibi).
 - Policy: defects caught at every stage, including S0 (elaboration) and S1
   failures fixed before committing, are recorded in BUGS.md.
+- Policy: agents push directly to `main`; no branches or pull requests.
 - Decision on a UART bootloader: not now. It would cost LCs on a 1280-LC
   part. Program images will instead be swapped into the BRAM initial values
   of an already placed-and-routed bitstream with `icebram`, which takes
