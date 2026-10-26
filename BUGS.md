@@ -1,7 +1,8 @@
 # Defect ledger
 
-This file is the experiment's data. Every hardware defect found in this
-repository is recorded here, whichever stage found it, so that at the end we
+This file is the experiment's data. Every defect found in this repository is
+recorded here, whichever stage found it -- including S0/S1 failures that
+were fixed before anything was committed -- so that at the end we
 can answer: how many defects did the cheap HardCaml stages catch, and what
 kinds of defect only the expensive stages could find?
 
@@ -12,6 +13,7 @@ category, because they cost iterations just the same.
 
 | Stage | Tool | Typical cost |
 |-------|------|--------------|
+| S0 | OCaml type check and HardCaml elaboration (width mismatch, combinational loop, undriven wire) | seconds |
 | S1 | Cyclesim expect tests, OCaml golden model (`make test`) | seconds |
 | S2 | Same benches on Verilator (`make verilate`) | tens of seconds |
 | S3 | Yosys + nextpnr: resources, timing, naming (`make synth names`) | seconds |
@@ -19,7 +21,9 @@ category, because they cost iterations just the same.
 
 ## Fields
 
-- **Found at**: the stage where the defect was first observed.
+- **Found at**: the stage where the defect was first observed. OCaml
+  syntax errors and API misuse are not defects; elaboration errors that
+  describe wrong hardware (a width mismatch, a combinational loop) are S0.
 - **Catchable at**: the cheapest stage that can reproduce it, after the
   regression test was added. If this is S4, explain why no cheaper stage can.
 - **Class**: one of `logic` (wrong function), `timing` (handshake or
@@ -32,6 +36,7 @@ category, because they cost iterations just the same.
 
 | Found at | Count |
 |----------|-------|
+| S0 | 0 |
 | S1 | 2 |
 | S2 | 0 |
 | S3 | 1 |
