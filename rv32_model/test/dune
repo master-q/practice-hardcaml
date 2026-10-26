@@ -1,0 +1,6 @@
+(library
+ (name rv32_model_test)
+ (inline_tests)
+ (libraries rv32_model)
+ (preprocess
+  (pps ppx_jane ppx_expect)))

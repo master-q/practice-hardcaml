@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Reject commits whose staged files or paths contain non-ASCII characters.
+# Activated by `make setup` (git config core.hooksPath .githooks).
+exec "$(git rev-parse --show-toplevel)/scripts/check_ascii.sh" --staged

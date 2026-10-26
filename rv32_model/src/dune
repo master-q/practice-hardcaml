@@ -1,0 +1,4 @@
+(library
+ (name rv32_model)
+ (preprocess
+  (pps ppx_jane)))

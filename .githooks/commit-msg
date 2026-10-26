@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Reject commit messages containing non-ASCII characters.
+# Activated by `make setup` (git config core.hooksPath .githooks).
+exec "$(git rev-parse --show-toplevel)/scripts/check_ascii.sh" --message "$1"
