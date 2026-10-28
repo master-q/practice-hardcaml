@@ -35,6 +35,13 @@ done, what was learned, and the numbers measured that day.
 - Later the same day: `make mcu`, `make mcu-prog`, `make mcu-term` at the
   top level; per-design logic-cell budgets (MAX_LC; mcu 1130, blink 50,
   hello 150) enforced by check_resources.sh, with self-tests.
+- icebram flow for the MCU: synthesise once with pseudo-random placeholder
+  RAM contents, then swap the firmware into the bitstream per byte lane.
+  Firmware-only rebuild: 16.5 s -> 0.33 s. The swapped bitstream is
+  byte-identical to direct synthesis (checked by `make icebram-check`).
+  Learned: swapping back is impossible because firmware has runs of
+  zeros that icebram cannot locate, so the per-build check compares the
+  bitstream minus `.ram_data` instead.
 - Tools added: z3 (SAT for Hardcaml_verify), hardcaml_verify,
   gcc-riscv64-unknown-elf.
 

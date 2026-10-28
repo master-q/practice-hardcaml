@@ -111,13 +111,24 @@ simulation/synthesis mismatches unlikely.
 
 ### Program loading without a bootloader
 
-A UART bootloader would cost logic on a 1280-LC device. Today the board
-generator (`designs/mcu/bin/main.ml`) writes the firmware into the RAM's
-initial contents and the design is re-synthesised (about 16 s). The next
-step is `icebram`: synthesise once with known placeholder contents and swap
-a new program image into the placed-and-routed bitstream in seconds,
-without touching the logic. Simulators load the same image through the
-MCU's load port.
+A UART bootloader would cost logic on a 1280-LC device. Instead:
+
+1. The board generator (`designs/mcu/bin/main.exe placeholder`) fills the
+   RAM with pseudo-random bytes (fixed seeds) and writes them to
+   `placeholder_bN.hex`, one file per byte lane. This design is
+   synthesised and placed once (`build/placeholder.asc`, about 16 s).
+2. `main.exe hex` splits the firmware into `firmware_bN.hex`.
+3. `icebram` finds each lane's BRAMs by their placeholder contents and
+   replaces them with the firmware (`build/top.asc`), then `icepack`.
+   A firmware-only change takes about 0.3 s.
+
+Checks: every build verifies that only `.ram_data` sections changed
+(`scripts/strip_ram_data.sh`); `make icebram-check` (part of `make ci`)
+verifies that the result is byte-identical to synthesising with the
+firmware directly. The placeholder must be random: icebram cannot locate
+low-entropy contents such as runs of zeros, and the register file's
+all-zero BRAMs must never match. Simulators load the same image through
+the MCU's load port.
 
 ### What runs where (MCU)
 
@@ -128,7 +139,8 @@ MCU's load port.
 | Core lockstep: directed programs, every trap, 300 random programs | S1 | ~2 s |
 | MCU runs the C echo firmware, UART in/out, lockstep (46k instructions) | S1 | ~2 s |
 | Same MCU test on Verilator | S2 | ~11 s |
-| Fits: LCs, exactly 10 BRAMs, Fmax, all flip-flops named | S3 | ~16 s |
+| Fits: LC budget, exactly 10 BRAMs, Fmax, all flip-flops named | S3 | ~16 s |
+| icebram swap equals direct synthesis | S3 (`make ci`) | ~16 s |
 
 ### CPU plan
 

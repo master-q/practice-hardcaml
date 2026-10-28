@@ -80,7 +80,7 @@ An IP block (`ip/<name>/`) has `src/` (library), `test/` (S0/S1 tests) and
 usually `bench/` (testbenches taking a `Cyclesim.t`). A board design
 (`designs/<name>/`) adds `bin/main.ml` (prints Verilog for module `top`),
 optionally `verilator/` (S2), an `icestick.pcf`, and a short `Makefile`
-setting `PROJECT`, `EXPECT_BRAM` and optionally `FIRMWARE` before including
+setting `PROJECT`, `EXPECT_BRAM`, `MAX_LC` and optionally `FIRMWARE` before including
 `../../mk/icestick.mk`. Add new designs to `BOARD_PROJECTS` in the root
 `Makefile` and to the table in `README.md`.
 
@@ -89,7 +89,12 @@ setting `PROJECT`, `EXPECT_BRAM` and optionally `FIRMWARE` before including
     make                     # per-commit gate: langcheck, S0/S1, synth + S3 checks
     make ci                  # also runs the Verilator stage (S2)
     make -C designs/mcu      # build designs/mcu/build/top.bin with sw/echo.bin inside
-    make -C designs/mcu prog # flash it (needs a board on USB)
+    make mcu-prog            # flash it (needs a board on USB)
+    make mcu-term            # talk to it at 115200 baud
+
+Firmware-only changes do not re-synthesise: the MCU bitstream is built
+with placeholder RAM contents and `icebram` swaps the firmware in
+(docs/WORKFLOW.md, "Program loading").
 
 ## Environment
 

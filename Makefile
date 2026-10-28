@@ -7,7 +7,7 @@
 #   make names      naming discipline on the generated Verilog
 #   make langcheck  ASCII-only policy on all tracked files
 #   make selftest   negative tests for the checks themselves
-#   make ci         everything above, including verilate
+#   make ci         everything above, including verilate and icebram-check
 #
 # The RV32E MCU on an iCEstick (S4, by hand):
 #   make mcu        build designs/mcu/build/top.bin (firmware sw/echo.bin)
@@ -42,13 +42,16 @@ synth:
 names:
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p names || exit 1; done
 
-ci: langcheck selftest test verilate synth names
+ci: langcheck selftest test verilate synth names icebram-check
 
 mcu:
 	$(MAKE) -C designs/mcu
 
 mcu-prog:
 	$(MAKE) -C designs/mcu prog
+
+icebram-check:
+	$(MAKE) -C designs/mcu icebram-check
 
 mcu-term:
 	picocom -b 115200 $(TTY)
@@ -57,4 +60,4 @@ clean:
 	dune clean
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p clean; done
 
-.PHONY: mcu mcu-prog mcu-term all setup langcheck selftest test verilate synth names ci clean
+.PHONY: mcu mcu-prog mcu-term icebram-check all setup langcheck selftest test verilate synth names ci clean

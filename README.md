@@ -41,6 +41,12 @@ The iCEstick's FTDI chip exposes two serial ports; the UART is the second
 a `> ` prompt. Type a line and press Enter: it answers in upper case and
 shows the line length on the LEDs. Leave picocom with Ctrl-A Ctrl-X.
 
+Changing only the firmware (`sw/`) is fast: the hardware is synthesised
+once with placeholder RAM contents, and `icebram` writes the new program
+into the existing bitstream. `make mcu-prog` after editing
+`sw/echo/main.c` takes about a second plus flashing; only HDL changes
+re-run Yosys and nextpnr (about 16 s).
+
 ## Toolchain
 
 - Local: open the repository in the devcontainer (`.devcontainer/`).
