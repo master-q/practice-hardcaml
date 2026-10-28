@@ -27,19 +27,20 @@ let create ~clocks_per_bit ~gap_bits ~message scope (i : _ I.t) =
   let spec = Reg_spec.create ~clock:i.clock ~clear () in
   let length = String.length message in
   let index_bits = Int.max 1 (Int.ceil_log2 length) in
-  let data_valid = wire 1 in
-  let tx_ready = wire 1 in
+  let%hw data_valid = wire 1 in
+  let%hw tx_ready = wire 1 in
   let%hw_var index = Always.Variable.reg ~width:index_bits spec in
   let%hw_var gap = Always.Variable.reg ~width:gap_bits spec in
   let%hw_var waiting = Always.Variable.reg ~width:1 spec in
   let%hw_var led = Always.Variable.reg ~width:1 spec in
-  let last = index.value ==:. length - 1 in
+  let%hw last = index.value ==:. length - 1 in
+  let%hw gap_done = gap.value ==:. -1 in
   Always.(
     compile
       [ if_
           waiting.value
           [ gap <-- gap.value +:. 1
-          ; when_ (gap.value ==:. -1) [ waiting <-- gnd ]
+          ; when_ gap_done [ waiting <-- gnd ]
           ]
           [ when_
               tx_ready

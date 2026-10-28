@@ -91,13 +91,13 @@ let create ~(base : Rv32_model.Isa.base) scope (i : _ I.t) =
   let%hw_var load_offset = Always.Variable.reg ~width:2 spec in
   let%hw_var trap = Always.Variable.reg ~width:3 spec in
   let ir = ir_reg.value in
-  let rd = ir.:[7 + reg_bits - 1, 7] in
-  let funct3 = ir.:[14, 12] in
-  let alt = ir.:(30) in
+  let%hw rd = ir.:[7 + reg_bits - 1, 7] in
+  let%hw funct3 = ir.:[14, 12] in
+  let%hw alt = ir.:(30) in
   (* Register file. *)
-  let rf_we = Always.Variable.wire ~default:gnd in
-  let rf_wdata = Always.Variable.wire ~default:(zero 32) in
-  let rf_raddr =
+  let%hw_var rf_we = Always.Variable.wire ~default:gnd in
+  let%hw_var rf_wdata = Always.Variable.wire ~default:(zero 32) in
+  let%hw rf_raddr =
     mux2 (sm.is Decode) i.mem_rdata.:[15 + reg_bits - 1, 15] ir.:[20 + reg_bits - 1, 20]
   in
   let rs2_value =
@@ -121,15 +121,12 @@ let create ~(base : Rv32_model.Isa.base) scope (i : _ I.t) =
   let%hw rf_rdata = rs2_value in
   let a = rs1_value.value in
   let b = rf_rdata in
-  let dec = Decode.create ~base { Decode.I.insn = ir } in
+  let dec = Decode.create ~base { Decode.I.insn = ir } |> Decode.O.Of_signal.apply_names ~prefix:"dec_" in
   let%hw imm = (Imm.create { Imm.I.insn = ir }).imm in
+  let%hw alu_b = mux2 (dec.op |: dec.branch) b imm in
   let alu =
-    Alu.create
-      { Alu.I.a
-      ; b = mux2 (dec.op |: dec.branch) b imm
-      ; funct3
-      ; alt = dec.op &: alt
-      }
+    Alu.create { Alu.I.a; b = alu_b; funct3; alt = dec.op &: alt }
+    |> Alu.O.Of_signal.apply_names ~prefix:"alu_"
   in
   (* One adder for every address: pc-relative (JAL, branches, AUIPC) or
      register-relative (JALR, loads, stores). *)
@@ -138,18 +135,18 @@ let create ~(base : Rv32_model.Isa.base) scope (i : _ I.t) =
   let%hw jump_target =
     mux2 dec.jalr (agu.:[31, 1] @: gnd) agu
   in
-  let taken = dec.jal |: dec.jalr |: (dec.branch &: alu.branch_taken) in
-  let next_pc = mux2 taken jump_target pc_plus4 in
-  let size = funct3.:[1, 0] in
-  let misaligned_mem =
+  let%hw taken = dec.jal |: dec.jalr |: (dec.branch &: alu.branch_taken) in
+  let%hw next_pc = mux2 taken jump_target pc_plus4 in
+  let%hw size = funct3.:[1, 0] in
+  let%hw misaligned_mem =
     (size ==:. 1 &: agu.:(0)) |: (size ==:. 2 &: (agu.:[1, 0] <>:. 0))
   in
-  let exec_result =
+  let%hw exec_result =
     mux2 dec.lui imm (mux2 dec.auipc agu (mux2 (dec.jal |: dec.jalr) pc_plus4 alu.result))
   in
   (* Store lanes. *)
-  let lane = agu.:[1, 0] in
-  let store_mask =
+  let%hw lane = agu.:[1, 0] in
+  let%hw store_mask =
     mux
       size
       [ binary_to_onehot lane |> Fn.flip uresize 4
@@ -158,11 +155,11 @@ let create ~(base : Rv32_model.Isa.base) scope (i : _ I.t) =
       ; of_string "1111"
       ]
   in
-  let store_data =
+  let%hw store_data =
     mux size [ repeat b.:[7, 0] 4; repeat b.:[15, 0] 2; b; b ]
   in
   (* Load extraction. *)
-  let loaded =
+  let%hw loaded =
     let shifted =
       mux load_offset.value (List.init 4 ~f:(fun k -> srl i.mem_rdata (8 * k)))
     in
@@ -179,18 +176,18 @@ let create ~(base : Rv32_model.Isa.base) scope (i : _ I.t) =
       ; shifted
       ]
   in
-  let shifted_once =
+  let%hw shifted_once =
     mux2
       (funct3 ==:. 1)
       (sll shift_value.value 1)
       (mux2 alt (sra shift_value.value 1) (srl shift_value.value 1))
   in
   (* Outputs driven from the state machine. *)
-  let mem_read = Always.Variable.wire ~default:gnd in
-  let mem_write = Always.Variable.wire ~default:gnd in
-  let retire = Always.Variable.wire ~default:gnd in
-  let retire_next_pc = Always.Variable.wire ~default:pc_plus4 in
-  let writes_rd = Always.Variable.wire ~default:gnd in
+  let%hw_var mem_read = Always.Variable.wire ~default:gnd in
+  let%hw_var mem_write = Always.Variable.wire ~default:gnd in
+  let%hw_var retire = Always.Variable.wire ~default:gnd in
+  let%hw_var retire_next_pc = Always.Variable.wire ~default:pc_plus4 in
+  let%hw_var writes_rd = Always.Variable.wire ~default:gnd in
   let halt code = Always.[ trap <--. code; sm.set_next Halted ] in
   let complete ~result ~next =
     Always.
@@ -266,7 +263,7 @@ let create ~(base : Rv32_model.Isa.base) scope (i : _ I.t) =
           ; Halted, []
           ]
       ]);
-  let mem_addr = mux2 (sm.is Fetch) pc.value agu in
+  let%hw mem_addr = mux2 (sm.is Fetch) pc.value agu in
   { O.mem_addr
   ; mem_read = mem_read.value
   ; mem_write = mem_write.value

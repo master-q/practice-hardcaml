@@ -39,6 +39,8 @@ let create ~clocks_per_bit scope (i : _ I.t) =
   let%hw_var bit_index = Always.Variable.reg ~width:4 spec in
   (* Frame shifted out LSB first: start bit, 8 data bits, stop bit. *)
   let%hw_var frame = Always.Variable.reg ~width:10 spec in
+  let%hw bit_done = baud.value ==:. clocks_per_bit - 1 in
+  let%hw last_bit = bit_index.value ==:. 9 in
   Always.(
     compile
       [ sm.switch
@@ -54,16 +56,16 @@ let create ~clocks_per_bit scope (i : _ I.t) =
           ; ( Sending
             , [ baud <-- baud.value +:. 1
               ; when_
-                  (baud.value ==:. clocks_per_bit - 1)
+                  bit_done
                   [ baud <--. 0
                   ; frame <-- srl frame.value 1
                   ; bit_index <-- bit_index.value +:. 1
-                  ; when_ (bit_index.value ==:. 9) [ sm.set_next Idle ]
+                  ; when_ last_bit [ sm.set_next Idle ]
                   ]
               ] )
           ]
       ]);
-  let idle = sm.is Idle in
+  let%hw idle = sm.is Idle in
   { O.tx = idle |: lsb frame.value; ready = idle }
 ;;
 

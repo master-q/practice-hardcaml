@@ -38,7 +38,7 @@ let create ~clocks_per_bit scope (i : _ I.t) =
      state means "idle line". *)
   let%hw rx_n_meta = reg spec ~:(i.rx) in
   let%hw rx_n_sync = reg spec rx_n_meta in
-  let line = ~:rx_n_sync in
+  let%hw line = ~:rx_n_sync in
   let sm = Always.State_machine.create (module State) spec in
   ignore (sm.current -- "state" : Signal.t);
   let baud_bits = Int.ceil_log2 clocks_per_bit in
@@ -46,8 +46,9 @@ let create ~clocks_per_bit scope (i : _ I.t) =
   let%hw_var bit_index = Always.Variable.reg ~width:3 spec in
   let%hw_var shift = Always.Variable.reg ~width:8 spec in
   let%hw_var valid = Always.Variable.reg ~width:1 spec in
-  let half_bit = baud.value ==:. (clocks_per_bit / 2) - 1 in
-  let full_bit = baud.value ==:. clocks_per_bit - 1 in
+  let%hw half_bit = baud.value ==:. (clocks_per_bit / 2) - 1 in
+  let%hw full_bit = baud.value ==:. clocks_per_bit - 1 in
+  let%hw last_bit = bit_index.value ==:. 7 in
   Always.(
     compile
       [ valid <-- gnd
@@ -68,7 +69,7 @@ let create ~clocks_per_bit scope (i : _ I.t) =
                   [ baud <--. 0
                   ; shift <-- line @: msbs shift.value
                   ; bit_index <-- bit_index.value +:. 1
-                  ; when_ (bit_index.value ==:. 7) [ sm.set_next Stop ]
+                  ; when_ last_bit [ sm.set_next Stop ]
                   ]
               ] )
           ; ( Stop

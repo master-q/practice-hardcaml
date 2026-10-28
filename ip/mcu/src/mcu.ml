@@ -70,7 +70,7 @@ let create (config : Config.t) scope (i : _ I.t) =
   in
   let%hw clear = (por_count <>:. 15) |: i.clear in
   let spec = Reg_spec.create ~clock:i.clock ~clear () in
-  let mem_rdata = wire 32 in
+  let%hw mem_rdata = wire 32 in
   let core =
     Rv32.Core.hierarchical
       ~base:config.base
@@ -78,9 +78,9 @@ let create (config : Config.t) scope (i : _ I.t) =
       { Rv32.Core.I.clock = i.clock; clear; mem_rdata }
   in
   let addr = core.mem_addr in
-  let is_io = addr.:(28) in
-  let word = addr.:[word_bits + 1, 2] in
-  let io_reg = addr.:[4, 2] in
+  let%hw is_io = addr.:(28) in
+  let%hw word = addr.:[word_bits + 1, 2] in
+  let%hw io_reg = addr.:[4, 2] in
   let load_addr = i.load_addr.:[word_bits - 1, 0] in
   (* RAM *)
   let lanes =
@@ -103,7 +103,7 @@ let create (config : Config.t) scope (i : _ I.t) =
          ()).(0)
       -- (ram_lane_name k ^ "_q"))
   in
-  let ram_rdata = concat_lsb lanes in
+  let%hw ram_rdata = concat_lsb lanes in
   (* UART *)
   let io_write r = core.mem_write &: is_io &: (io_reg ==:. r) in
   let io_read r = core.mem_read &: is_io &: (io_reg ==:. r) in
@@ -114,7 +114,7 @@ let create (config : Config.t) scope (i : _ I.t) =
       scope
       { Uart.Uart_tx.I.clock = i.clock
       ; clear
-      ; data_valid = io_write 0
+      ; data_valid = io_write 0 -- "uart_tx_write"
       ; data = core.mem_wdata.:[7, 0]
       }
   in
@@ -124,11 +124,13 @@ let create (config : Config.t) scope (i : _ I.t) =
       scope
       { Uart.Uart_rx.I.clock = i.clock; clear; rx = i.uart_rx }
   in
+  let%hw rx_read = io_read 0 in
+  let%hw leds_write = io_write 2 in
   let%hw rx_byte = reg spec ~enable:rx.valid rx.data in
   let%hw rx_valid =
-    reg_fb spec ~width:1 ~f:(fun v -> mux2 rx.valid vdd (mux2 (io_read 0) gnd v))
+    reg_fb spec ~width:1 ~f:(fun v -> mux2 rx.valid vdd (mux2 rx_read gnd v))
   in
-  let%hw leds = reg spec ~enable:(io_write 2) core.mem_wdata.:[7, 0] in
+  let%hw leds = reg spec ~enable:leds_write core.mem_wdata.:[7, 0] in
   (* Counters: 64 flip-flops and two adders, too much for the iCEstick
      (BUGS.md B-0009). *)
   let cycle, instret =
@@ -139,7 +141,7 @@ let create (config : Config.t) scope (i : _ I.t) =
       cycle, instret)
     else zero 32, zero 32
   in
-  let status = rx_valid @: tx.ready in
+  let%hw status = rx_valid @: tx.ready in
   let%hw io_rdata =
     reg
       spec
