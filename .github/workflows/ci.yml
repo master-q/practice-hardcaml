@@ -36,7 +36,7 @@ jobs:
       - name: Install OCaml packages
         run: >
           opam install -y dune hardcaml ppx_hardcaml hardcaml_waveterm
-          hardcaml_verilator hardcaml_verify ppx_jane ppx_expect
+          hardcaml_verilator hardcaml_verify hardcaml_of_verilog ppx_jane ppx_expect
 
       - name: Tool versions
         run: opam exec -- scripts/versions.sh

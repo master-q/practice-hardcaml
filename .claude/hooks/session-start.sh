@@ -30,7 +30,7 @@ if ! opam switch list --short | grep -Fxq "$SWITCH"; then
   opam switch create "$SWITCH" ocaml-base-compiler.5.3.0 -y
 fi
 opam install --switch="$SWITCH" -y dune hardcaml ppx_hardcaml hardcaml_waveterm \
-  hardcaml_verilator hardcaml_verify ppx_jane ppx_expect
+  hardcaml_verilator hardcaml_verify hardcaml_of_verilog ppx_jane ppx_expect
 
 # Enable the repository git hooks (English/ASCII-only policy).
 "$CLAUDE_PROJECT_DIR"/scripts/setup_clone.sh
