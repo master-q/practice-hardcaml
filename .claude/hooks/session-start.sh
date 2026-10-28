@@ -13,7 +13,7 @@ export OPAMYES=1
 SUDO=""
 if [ "$(id -u)" -ne 0 ]; then SUDO=sudo; fi
 
-pkgs="build-essential m4 pkg-config libffi-dev libgmp-dev libssl-dev zlib1g-dev opam bubblewrap yosys nextpnr-ice40 fpga-icestorm fpga-icestorm-chipdb iverilog verilator z3 gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf"
+pkgs="build-essential m4 pkg-config libffi-dev libgmp-dev libssl-dev zlib1g-dev opam bubblewrap yosys nextpnr-ice40 fpga-icestorm fpga-icestorm-chipdb iverilog verilator jq z3 gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf"
 if ! command -v yosys >/dev/null || ! command -v nextpnr-ice40 >/dev/null \
    || ! command -v icepack >/dev/null || ! command -v opam >/dev/null \
    || ! command -v verilator >/dev/null || ! command -v z3 >/dev/null \

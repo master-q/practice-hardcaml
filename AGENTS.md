@@ -22,6 +22,12 @@ evidence; `docs/WORKFLOW.md` describes the method.
   language. Enforced by `make langcheck`, the git hooks in `.githooks/`
   (enabled by `make setup`) and CI. Do not bypass them with `--no-verify`.
   Write "->" not arrows, "--" not dashes, plain quotes not curly ones.
+- **GitHub text is English ASCII too.** Issue titles and bodies, comments,
+  pull requests and reviews are written in English using ASCII only, even
+  when the maintainer writes to you in Japanese; translate the request.
+  Agent hooks enforce this (`scripts/hooks/github-text-ascii-policy.sh`,
+  wired into `.claude/settings.json` and `.codex/hooks.json`). Agents
+  without hooks (e.g. opencode) must follow this rule by hand.
 - **Generated Verilog is an artifact.** Never edit it; change the HardCaml
   source and regenerate.
 - **Name every flip-flop.** Use `let%hw`, `let%hw_var` or `(--)` for every

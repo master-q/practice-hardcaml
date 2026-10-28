@@ -42,6 +42,8 @@ done, what was learned, and the numbers measured that day.
   Learned: swapping back is impossible because firmware has runs of
   zeros that icebram cannot locate, so the per-build check compares the
   bitstream minus `.ram_data` instead.
+- Policy: GitHub text (issues, comments, PRs) must be English ASCII,
+  enforced by Claude Code and Codex PreToolUse hooks modelled on takibi.
 - Tools added: z3 (SAT for Hardcaml_verify), hardcaml_verify,
   gcc-riscv64-unknown-elf.
 

@@ -39,4 +39,16 @@ printf 'Info: \t        ICESTORM_LC:   10/ 1280\nInfo: \t        ICESTORM_RAM:  
 printf 'caf\xc3\xa9\n' > "$tmp/msg"
 ./check_ascii.sh --message "$tmp/msg" > /dev/null 2>&1 && fail "check_ascii accepted a non-ASCII message"
 
-echo "OK: S3 check self-tests"
+# GitHub text policy (agent hooks): non-ASCII issue text is denied,
+# English is allowed, unrelated commands are out of scope.
+policy=./hooks/github-text-ascii-policy.sh
+printf '%s' '{"tool_name":"mcp__github__issue_write","tool_input":{"title":"\u5272\u308a\u8fbc\u307f"}}' \
+  | $policy > /dev/null && fail "github policy accepted a non-ASCII issue title"
+printf '%s' '{"tool_name":"mcp__github__issue_write","tool_input":{"title":"Interrupts"}}' \
+  | $policy > /dev/null || fail "github policy rejected an English issue"
+printf '%s' '{"tool_name":"Bash","tool_input":{"command":"gh issue create --title \u5272"}}' \
+  | $policy > /dev/null && fail "github policy accepted gh issue create with non-ASCII"
+printf '%s' '{"tool_name":"Bash","tool_input":{"command":"echo \u5272"}}' \
+  | $policy > /dev/null || fail "github policy blocked an unrelated command"
+
+echo "OK: check self-tests"
