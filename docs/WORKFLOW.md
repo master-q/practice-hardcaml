@@ -75,8 +75,8 @@ or from the golden model), as done in `rv32_model/test`.
 |-------|------|---------|------|
 | S0 | OCaml type check, HardCaml elaboration checks; SAT equivalence proofs (`Hardcaml_verify.Sec` + z3) | `dune build`, `make test` | every change |
 | S1 | Cyclesim expect tests; OCaml golden model | `make test` | every change |
+| S1 | also: riscv-arch-test RV32I (independent reference signatures) on the plain and the i9 core, lockstep; Cyclesim like the rest of S1, but a separate command because it fetches the tests | `make arch-test` | in CI |
 | S2 | the same benches on Verilator | `make verilate` | before pushing; in CI |
-| S1 | riscv-arch-test RV32I (independent reference signatures) on the core, lockstep | `make arch-test` | in CI |
 | S2b | the generated board Verilog with firmware, four-state, pin-level UART (Icarus) | `make board-sim` | every change |
 | S2n | post-synthesis: the Yosys iCE40 and ECP5 netlists read back into HardCaml (`hardcaml_of_verilog`, cell models in `testlib/netlist`); the MCU benches in lockstep (iCEstick echo, i9 interrupt test), and the board tops with the firmware only in block RAM initial values and the full start-up hold | `make netlist-sim` (i9 board top: `make netlist-sim-i9`) | every change (i9 board top: in CI) |
 | S3 | Yosys + nextpnr (LCs, Fmax), expected BRAM count, naming check | `make synth names` | every change |
