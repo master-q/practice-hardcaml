@@ -3,6 +3,25 @@
 A dated log of the project, newest entry first. Each entry records what was
 done, what was learned, and the numbers measured that day.
 
+## 2026-10-29: i9 system clock 50 MHz from the PLL
+
+- The maintainer asked to measure performance as DMIPS (CPI x Fmax) and to
+  optimise later (#23); for now the i9 runs at 50 MHz, below the
+  estimated Fmax of 54 MHz.
+- designs/mcu_i9/src/pll.ml: EHXPLLL with dividers searched for the target
+  (same as ecppll for 50 MHz: CLKI 1, CLKFB 2, CLKOP 12). The MCU is held
+  in reset until the synchronised LOCK and the start-up hold. One setting
+  (Mcu_i9.clock_mhz) drives the PLL, nextpnr (`main.exe clock-mhz`), the
+  UART divider, the hold and the testbenches. EXPERIMENT=no-pll runs from
+  the 25 MHz pin.
+- Checked: a target above Fmax fails the build (70 MHz: "FAIL at 70.00
+  MHz", make exits with an error).
+- Icarus board-sim: behavioural EHXPLLL stand-in (tb_cells.v, lock after
+  50 us). Netlist stage: EHXPLLL as CLKOP = CLKI, locked (one clock).
+- i9: 54.07 MHz estimated at 50, 2798 TRELLIS_COMB; Dhrystone 0.370
+  DMIPS/MHz = 18.5 DMIPS. The i9 netlist stage now takes about 2 minutes
+  (the hold is twice as many cycles).
+
 ## 2026-10-29: fetch overlap (#4, step 2)
 
 - Core ~fetch_overlap: an instruction that does not use the memory bus

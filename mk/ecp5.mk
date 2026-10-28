@@ -19,7 +19,11 @@ FW_FILE  := $(ROOT)/_build/default/$(FIRMWARE)
 HWSRCS   := $(shell find src bin $(ROOT)/ip $(ROOT)/models -name '*.ml' -o -name dune 2>/dev/null)
 SWSRCS   := $(shell find $(ROOT)/sw -type f 2>/dev/null)
 LPF      := colorlight_i9.lpf
-PNR      := nextpnr-ecp5 -q --45k --package CABGA381 --speed 6 --freq 25 --lpf $(LPF)
+# The system clock in MHz: designs with a PLL print it (`main.exe
+# clock-mhz`); nextpnr checks every path against it. The PLL output is
+# also derived by nextpnr from the oscillator's FREQUENCY in the LPF.
+CLOCK_MHZ = $$($(EXE) clock-mhz 2>/dev/null || echo 25)
+PNR      = nextpnr-ecp5 -q --45k --package CABGA381 --speed 6 --freq $(CLOCK_MHZ) --lpf $(LPF)
 
 all: $(BUILD)/top.bit resources
 
@@ -88,7 +92,7 @@ board-sim: $(EXE) $(SWSRCS)
 	cd $(ROOT) && dune build ./$(BOARD_SIM_FIRMWARE)
 	@mkdir -p $(BUILD)/board_sim
 	$(EXE) verilog $(BOARD_SIM_FW_FILE) $(BUILD)/board_sim > $(BUILD)/board_sim.v
-	iverilog -g2012 -o $(BUILD)/board_sim.vvp tb_top.v $(BUILD)/board_sim.v
+	iverilog -g2012 -DCLOCK_MHZ=$(CLOCK_MHZ) -o $(BUILD)/board_sim.vvp tb_top.v $(if $(wildcard tb_cells.v),tb_cells.v) $(BUILD)/board_sim.v
 	vvp -n $(BUILD)/board_sim.vvp | tr -d '\r' | tee $(BUILD)/board_sim.log
 	@grep -q '^\[tb\] PASS' $(BUILD)/board_sim.log
 

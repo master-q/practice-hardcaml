@@ -1,14 +1,17 @@
 (* Colorlight i9 v7.2 (Lattice ECP5 LFE5U-45F) top level for the MCU:
-   RV32I + Zicsr (CSRs, interrupts, mcycle/minstret), 64 KiB RAM, 115200
-   baud from the 25 MHz oscillator through the ext board's DAPLink USB serial port, LED D2.
+   RV32I + Zicsr (CSRs, interrupts, mcycle/minstret), 64 KiB RAM, a
+   50 MHz system clock from the 25 MHz oscillator through the ECP5 PLL
+   (Pll; EXPERIMENT=no-pll runs from the 25 MHz pin directly), 115200
+   baud through the ext board's DAPLink USB serial port, LED D2.
 
    Pins (designs/mcu_i9/colorlight_i9.lpf) follow wuxx/Colorlight-FPGA-Projects:
    clock P3, UART TX J17 / RX H18 (as on the i5 ext board), LED D2 on L2.
    The LED is driven active low, as on the other Colorlight modules.
 
    Bring-up aids (B-0014; docs/BRINGUP_I9.md):
-   - the MCU is held in reset for about 21 ms after configuration
-     (Mcu.Startup; EXPERIMENT=no-hold removes it);
+   - the MCU is held in reset until the PLL reports lock (synchronised)
+     and for about 21 ms after that (Mcu.Startup; EXPERIMENT=no-hold
+     shortens the latter);
    - the single LED shows the state: slow blink = clock and bitstream run
      but the firmware has not started; steady on = firmware started (crt0
      sets LEDS bit 0); fast blink = the core halted (trap). *)
@@ -16,7 +19,15 @@ open! Base
 open! Hardcaml
 open Signal
 
-let clock_hz = 25_000_000
+let osc_mhz = 25
+
+(* The system clock: the one setting the PLL, nextpnr (--freq, through
+   `main.exe clock-mhz`), the UART divider, the start-up hold and the
+   testbenches follow. Chosen below the estimated Fmax with a margin
+   (issue #23). *)
+let use_pll = not (Option.equal String.equal (Sys.getenv "EXPERIMENT") (Some "no-pll"))
+let clock_mhz = if use_pll then 50 else osc_mhz
+let clock_hz = clock_mhz * 1_000_000
 
 let config =
   { Mcu.Config.base = Rv32i
@@ -45,15 +56,27 @@ module O = struct
   [@@deriving hardcaml]
 end
 
+(* Registers without a reset, for the generator's power-up values. *)
+let no_reset = [ "blink"; "pll_lock_meta"; "pll_lock_sync" ]
+
 let create scope (i : _ I.t) =
-  let free = Reg_spec.create ~clock:i.clock () in
-  let hold = Mcu.Startup.hold ~clock_hz scope ~clock:i.clock in
+  let clock, locked =
+    if use_pll
+    then Pll.create ~fin_mhz:osc_mhz ~fout_mhz:clock_mhz ~clkin:i.clock
+    else i.clock, vdd
+  in
+  let clock = clock -- "sys_clock" in
+  let free = Reg_spec.create ~clock () in
+  (* LOCK comes from the PLL, asynchronous to its output clock. *)
+  let%hw pll_lock_meta = reg free locked in
+  let%hw pll_lock_sync = reg free pll_lock_meta in
+  let hold = Mcu.Startup.hold ~clock_hz scope ~clock |: ~:pll_lock_sync in
   let%hw blink = reg_fb free ~width:24 ~f:(fun d -> d +:. 1) in
   let o =
     Mcu.hierarchical
       config
       scope
-      { Mcu.I.clock = i.clock
+      { Mcu.I.clock = clock
       ; clear = hold
       ; uart_rx = i.uart_rx
       ; load_we = gnd

@@ -85,7 +85,8 @@ cores with the pinned toolchain is still to do.
   prediction) saves the Fetch cycle of every instruction that does not
   use the memory bus: CPI 3.26 -> 2.64, 0.370 DMIPS/MHz, for 186 more
   cells (2688 -> 2874), Fmax 57 -> 54 MHz.
-- On the Colorlight i9 at 25 MHz, rv32 gives 0.370 x 25 = 9.3 DMIPS.
+- The i9 runs at 50 MHz from the PLL (estimated Fmax 54 MHz): 0.370 x
+  50 = 18.5 DMIPS. Further work on the CPI x Fmax trade-off: issue #23.
 
 ## Full designs (place and route)
 

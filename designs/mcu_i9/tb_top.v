@@ -5,10 +5,17 @@
 // printed its DMIPS/MHz line and the core has halted with the LED in its
 // "halted" state. Run with `make board-sim`.
 `timescale 1ns/1ps
+// CLOCK_MHZ: the system clock (`main.exe clock-mhz`, passed by mk/ecp5.mk);
+// the board oscillator is 25 MHz, the PLL stand-in (tb_cells.v) makes the
+// system clock from it.
+`ifndef CLOCK_MHZ
+`define CLOCK_MHZ 25
+`endif
 module tb;
   reg clock = 0;
-  always #20 clock = ~clock;              // 25 MHz
-  localparam BIT = 217 * 40.0;            // 115200 baud, as in the design
+  always #20 clock = ~clock;              // 25 MHz oscillator
+  localparam CLOCKS_PER_BIT = (`CLOCK_MHZ * 1000000) / 115200;
+  localparam BIT = CLOCKS_PER_BIT * 1000.0 / `CLOCK_MHZ;  // 115200 baud, as in the design
   reg uart_rx = 1;
   wire uart_tx, led_n;
   top dut (.clock(clock), .uart_rx(uart_rx), .uart_tx(uart_tx), .led_n(led_n));

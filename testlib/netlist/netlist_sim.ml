@@ -231,6 +231,16 @@ let create_fn ?(inits = ref []) (m : Netlist.Module.t) (inputs : (string * Signa
         match y with
         | Bit.Index _ -> drive y (net a)
         | _ -> ())
+    | "EHXPLLL" ->
+      (* Cyclesim has one clock: one simulation cycle is one cycle of the
+         PLL output, so CLKOP is CLKI and the PLL is locked from the start.
+         Only CLKOP and LOCK are supported. *)
+      List.iter cell.outputs ~f:(fun o ->
+        match o.name, o.value with
+        | "CLKOP", [ (Bit.Index _ as b) ] -> drive b (port "CLKI")
+        | "LOCK", [ (Bit.Index _ as b) ] -> drive b vdd
+        | _, [ Bit.Index _ ] -> Ice40_cells.unsupported "EHXPLLL output %s used" o.name
+        | _ -> ())
     | "VLO" -> out1 "Z" gnd
     | "VHI" -> out1 "Z" vdd
     | "$scopeinfo" ->

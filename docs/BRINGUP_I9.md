@@ -7,7 +7,7 @@ HISTORY.md and any deviation in BUGS.md.
 ## 0. Before connecting
 
     git pull
-    make ci            # includes the i9 board simulation (~2 min)
+    make ci            # includes the i9 board simulation and netlist stage
     make versions      # note the toolchain in HISTORY.md (B-0015)
 
 ## 1. Load and run Dhrystone
@@ -22,14 +22,19 @@ Expected:
 - The terminal shows (open it first, then reload with `make i9-prog`):
 
       dhrystone: runs=500 cycles=... instret=...
-      dhrystone: DMIPS/MHz=0.22x
+      dhrystone: DMIPS/MHz=0.370
 
-  0.222 is the simulation result with the CI toolchain; other gcc releases
-  give slightly different numbers (docs/BENCHMARKS.md).
+  0.370 is the simulation result with the pinned toolchain
+  (docs/BENCHMARKS.md). The system clock is 50 MHz from the PLL, so this
+  is about 18.5 DMIPS; "Microseconds for one run" assumes the clock in
+  the firmware, check it against a stopwatch on a long run if in doubt.
+- The LED counter runs at 50 MHz: the blink rates are twice those of a
+  25 MHz build.
 
 If the LED keeps blinking slowly: the core did not start (look at the
-reset hold, B-0014). If it blinks fast immediately: the core trapped early.
-If nothing at all: clock pin or bitstream loading.
+reset hold, B-0014, and the PLL lock). If it blinks fast immediately: the
+core trapped early. If nothing at all: clock pin, PLL (step 2b) or
+bitstream loading.
 
 ## 2. Start-up ablation (does B-0014 exist on the ECP5?)
 
@@ -38,6 +43,16 @@ If nothing at all: clock pin or bitstream loading.
 
 Record whether Dhrystone still runs without the hold. Restore with
 `make -C designs/mcu_i9 clean && make i9-prog`.
+
+## 2b. PLL ablation (if anything in step 1 failed)
+
+    make -C designs/mcu_i9 clean && EXPERIMENT=no-pll make i9-prog
+    make i9-term
+
+Runs from the 25 MHz pin without the PLL (UART divider and hold follow).
+If this works and the 50 MHz build does not, the PLL configuration or its
+lock is the cause; record it in BUGS.md. Only one switch per experiment
+(AGENTS.md).
 
 ## 3. Pins and LED polarity
 
