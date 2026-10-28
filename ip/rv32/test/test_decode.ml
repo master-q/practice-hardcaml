@@ -8,10 +8,11 @@ module Isa = Rv32_model.Isa
 module Sim = Cyclesim.With_interface (Rv32.Decode.I) (Rv32.Decode.O)
 
 let base = ref Isa.Rv32e
+let zicsr = ref false
 
 (* Classes in the order of Decode.O, as the model sees them. *)
 let model_class w =
-  match Isa.decode ~base:!base w with
+  match Isa.decode ~zicsr:!zicsr ~base:!base w with
   | Lui _ -> "lui"
   | Auipc _ -> "auipc"
   | Jal _ -> "jal"
@@ -34,7 +35,8 @@ let hw_class (o : Bits.t ref Rv32.Decode.O.t) =
   let set =
     Rv32.Decode.O.(
       to_list (map2 port_names o ~f:(fun n b -> n, Bits.to_bool !b)))
-    |> List.filter_map ~f:(fun (n, b) -> Option.some_if (b && not (String.equal n "shift")) n)
+    |> List.filter_map ~f:(fun (n, b) ->
+      Option.some_if (b && not (List.mem [ "shift"; "csr_imm" ] n ~equal:String.equal)) n)
   in
   match set with
   | [ c ] -> c
@@ -42,9 +44,10 @@ let hw_class (o : Bits.t ref Rv32.Decode.O.t) =
   | l -> "(" ^ String.concat ~sep:" " l ^ ")"
 ;;
 
-let check_decoder b =
+let check_decoder ?(z = false) b =
   base := b;
-  let sim = Sim.create (Rv32.Decode.create ~base:b) in
+  zicsr := z;
+  let sim = Sim.create (Rv32.Decode.create ~zicsr:z ~base:b) in
   let i = Cyclesim.inputs sim in
   let o = Cyclesim.outputs sim in
   let checked = ref 0 in
@@ -76,14 +79,17 @@ let check_decoder b =
                  lor opcode)))))
     done
   done;
-  List.iter [ 0x00000073; 0x00100073; 0x00200073; 0x10000073 ] ~f:check;
+  List.iter
+    [ 0x00000073; 0x00100073; 0x00200073; 0x10000073; 0x30200073; 0x10500073 ]
+    ~f:check;
   let rng = Random.State.make [| 42 |] in
   for _ = 1 to 100_000 do
     check (Random.State.bits rng lor (Random.State.int rng 4 lsl 30))
   done;
   printf
-    "%s: checked %d words, %d mismatches\n"
+    "%s%s: checked %d words, %d mismatches\n"
     (Sexp.to_string (Isa.sexp_of_base b))
+    (if z then "+zicsr" else "")
     !checked
     !mismatches
 ;;
@@ -91,9 +97,13 @@ let check_decoder b =
 let%expect_test "decoder agrees with the model" =
   check_decoder Rv32e;
   check_decoder Rv32i;
+  check_decoder ~z:true Rv32e;
+  check_decoder ~z:true Rv32i;
   [%expect
     {|
-    Rv32e: checked 362148 words, 0 mismatches
-    Rv32i: checked 362148 words, 0 mismatches
+    Rv32e: checked 362150 words, 0 mismatches
+    Rv32i: checked 362150 words, 0 mismatches
+    Rv32e+zicsr: checked 362150 words, 0 mismatches
+    Rv32i+zicsr: checked 362150 words, 0 mismatches
     |}]
 ;;

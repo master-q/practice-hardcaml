@@ -75,7 +75,7 @@ let create (config : Config.t) scope (i : _ I.t) =
     Rv32.Core.hierarchical
       ~base:config.base
       scope
-      { Rv32.Core.I.clock = i.clock; clear; mem_rdata }
+      { Rv32.Core.I.clock = i.clock; clear; mem_rdata; irq = zero 3 }
   in
   let addr = core.mem_addr in
   let%hw is_io = addr.:(28) in

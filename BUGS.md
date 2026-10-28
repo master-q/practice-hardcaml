@@ -84,6 +84,36 @@ core and the MCU passed lockstep on their first run.
 
 ## Entries
 
+### B-0020: core harness sampled the Fetch flag one cycle late
+
+- Date: 2026-10-29
+- Project: ip/rv32/bench (core harness, Zicsr)
+- Found at: S1; Catchable at: S1
+- Class: testbench timing or protocol
+- Symptom: the new missed-interrupt/priority check reported "core took
+  interrupt N, expected none" for every interrupt.
+- Cause: the harness read the core's `fetch` output before
+  `Cyclesim.cycle_before_clock_edge`, i.e. the previous cycle's value, so
+  it recorded the irq input of the wrong cycle (same family as B-0001).
+- Fix: read it after the combinational update.
+- Regression: the directed interrupt tests and the checker's negative
+  tests (`lockstep catches interrupt mistakes`) in ip/rv32/test/test_zicsr.ml.
+
+### B-0019: mcycle/minstret undriven in the core without Zicsr
+
+- Date: 2026-10-29
+- Project: ip/rv32 (core)
+- Found at: S0 (HardCaml elaboration, "circuit input signal must have a
+  port name (unassigned wire?)"); Catchable at: S0
+- Class: RTL structure (undriven register)
+- Symptom: every non-Zicsr build failed to elaborate after the counters
+  were added.
+- Cause: the counter registers were assigned only in the Zicsr branch of
+  the Always block; an Always register that is never assigned has an
+  undriven input.
+- Fix: assign them 0 without Zicsr (removed by synthesis).
+- Regression: every existing S1 test elaborates the non-Zicsr core.
+
 ### B-0018: netlist reader rejected Yosys 0.70's $scopeinfo cells
 
 - Date: 2026-10-29

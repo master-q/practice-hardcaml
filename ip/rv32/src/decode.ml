@@ -1,6 +1,8 @@
-(* Instruction classification and legality for RV32I and RV32E. An
-   instruction is illegal if its encoding is not in RV32I or, for RV32E, if
-   any register field it uses names x16..x31. test/test_decode.ml checks this against the golden
+(* Instruction classification and legality for RV32I and RV32E, with
+   optional Zicsr, MRET and WFI ([~zicsr], issue #3; without it they are
+   illegal and the outputs are constant 0). An instruction is illegal if
+   its encoding is not in the ISA or, for RV32E, if any register field it
+   uses names x16..x31. test/test_decode.ml checks this against the golden
    model's decoder on every opcode/funct combination and random words. *)
 open! Base
 open! Hardcaml
@@ -25,12 +27,16 @@ module O = struct
     ; fence : 'a
     ; ecall : 'a
     ; ebreak : 'a
+    ; csr : 'a (* CSRRW/S/C and the immediate forms *)
+    ; csr_imm : 'a (* the immediate forms (funct3 bit 2) *)
+    ; mret : 'a
+    ; wfi : 'a
     ; illegal : 'a
     }
   [@@deriving hardcaml]
 end
 
-let create ~(base : Rv32_model.Isa.base) (i : _ I.t) =
+let create ?(zicsr = false) ~(base : Rv32_model.Isa.base) (i : _ I.t) =
   let x = i.insn in
   let opcode = x.:[6, 0] in
   let funct3 = x.:[14, 12] in
@@ -62,8 +68,15 @@ let create ~(base : Rv32_model.Isa.base) (i : _ I.t) =
   let fence = is 0b0001111 &: (funct3 ==:. 0) in
   let ecall = x ==:. 0x00000073 in
   let ebreak = x ==:. 0x00100073 in
-  let uses_rd = lui |: auipc |: jal |: jalr |: load |: op_imm |: op in
-  let uses_rs1 = jalr |: branch |: load |: store |: op_imm |: op in
+  let csr, csr_imm, mret, wfi =
+    if zicsr
+    then (
+      let csr = is 0b1110011 &: ~:(f3_is [ 0; 4 ]) in
+      csr, csr &: funct3.:(2), x ==:. 0x30200073, x ==:. 0x10500073)
+    else gnd, gnd, gnd, gnd
+  in
+  let uses_rd = lui |: auipc |: jal |: jalr |: load |: op_imm |: op |: csr in
+  let uses_rs1 = jalr |: branch |: load |: store |: op_imm |: op |: (csr &: ~:csr_imm) in
   let uses_rs2 = branch |: store |: op in
   let bad_reg =
     match base with
@@ -72,7 +85,7 @@ let create ~(base : Rv32_model.Isa.base) (i : _ I.t) =
   in
   let known =
     lui |: auipc |: jal |: jalr |: branch |: load |: store |: op_imm |: op |: fence
-    |: ecall |: ebreak
+    |: ecall |: ebreak |: csr |: mret |: wfi
   in
   { O.lui
   ; auipc
@@ -87,6 +100,10 @@ let create ~(base : Rv32_model.Isa.base) (i : _ I.t) =
   ; fence
   ; ecall
   ; ebreak
+  ; csr
+  ; csr_imm
+  ; mret
+  ; wfi
   ; illegal = ~:known |: bad_reg
   }
 ;;
