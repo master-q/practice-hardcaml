@@ -4,6 +4,11 @@
    a fixed format that the testbench parses:
 
      dhrystone: runs=N cycles=C instret=I
+     dhrystone: DMIPS/MHz=0.ddd
+
+   DMIPS/MHz = runs * 1e6 / (cycles * 1757); in thousandths that is
+   runs * 569152 / cycles (569152 = 1e9 / 1757), which fits in 32 bits
+   for up to 7000 runs.
 
    (debug_printf, used for the verbose output, is defined empty in
    riscv-tests' dhrystone.c.) */
@@ -20,7 +25,11 @@ void setStats(int enable)
     start_cycle = cycle;
     start_instret = instret;
   } else {
+    unsigned int cycles = cycle - start_cycle;
+    unsigned int milli = (unsigned int)NUMBER_OF_RUNS * 569152u / cycles;
     printf("dhrystone: runs=%d cycles=%u instret=%u\n",
-           NUMBER_OF_RUNS, cycle - start_cycle, instret - start_instret);
+           NUMBER_OF_RUNS, cycles, instret - start_instret);
+    printf("dhrystone: DMIPS/MHz=%u.%u%u%u\n",
+           milli / 1000, milli / 100 % 10, milli / 10 % 10, milli % 10);
   }
 }

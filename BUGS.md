@@ -37,16 +37,72 @@ category, because they cost iterations just the same.
 | Found at | Count |
 |----------|-------|
 | S0 | 0 |
-| S1 | 4 |
+| S1 | 5 |
 | S2 | 0 |
-| S3 | 4 |
+| S3 | 6 |
 | S4 | 0 |
 
-By class: testbench 3, toolchain (our own checks) 3, model 1, inference 1.
+By class: testbench 5, toolchain 4, model 1, inference 1, resource 1.
 No functional defect in the hardware itself has been found yet: the rv32e
 core and the MCU passed lockstep on their first run.
 
 ## Entries
+
+### B-0012: Yosys took 5.5 minutes to read 64 KiB of RAM initial values
+
+- Date: 2026-10-28
+- Project: ip/mcu/gen (designs/mcu_i9)
+- Found at: S3; Catchable at: S3
+- Class: toolchain
+- Symptom: the i9 build took 5 min 39 s, of which 5 min 27 s in Yosys.
+- Cause: the generator wrote one `ram_bN[i] = 8'hxx;` per byte (65,536
+  assignments); Yosys processes them very slowly.
+- Fix: one `initial $readmemh(...)` per lane reading the hex file the
+  generator already writes. Build time 17.8 s; bitstreams unchanged.
+- Regression: none automated (CI time would show it).
+
+### B-0011: benchmark scripts: newline-split list, SIGPIPE under pipefail
+
+- Date: 2026-10-28
+- Project: bench/ref_cores
+- Found at: S1 (running the scripts); Catchable at: S1
+- Class: testbench
+- Symptom: area.sh stopped after FemtoRV with no error message;
+  dhrystone.sh exited immediately with no output.
+- Cause: the Hazard3 source list was built with newlines, and
+  `IFS='|' read` only reads the first line, so the read command and top
+  name were wrong; `yes | head` fails under `set -o pipefail` because
+  `yes` dies of SIGPIPE.
+- Fix: space-separated list; `yes ... || true`.
+- Regression: none.
+
+### B-0010: reference testbench could not reach the I/O registers on FemtoRV
+
+- Date: 2026-10-28
+- Project: bench/ref_cores (tb_femtorv.v)
+- Found at: S1 (iverilog); Catchable at: S1
+- Class: testbench
+- Symptom: FemtoRV32 Quark ran until the testbench timeout and printed
+  nothing.
+- Cause: FemtoRV32's ADDR_WIDTH defaults to 24, so stores to the UART at
+  0x1000_0000 (bit 28) were truncated to address 0 and overwrote the
+  program. riscv-ice40's memory map fits in 24 bits; ours does not.
+- Fix: the Dhrystone testbench instantiates it with ADDR_WIDTH=32 (area
+  figures keep riscv-ice40's configuration).
+- Regression: `make -C bench/ref_cores dhrystone`.
+
+### B-0009: cycle/instret counters pushed the iCEstick MCU over its LC budget
+
+- Date: 2026-10-28
+- Project: ip/mcu, designs/mcu
+- Found at: S3 (MAX_LC); Catchable at: S3
+- Class: resource
+- Symptom: `make` failed with 1195 LCs against a budget of 1130 after the
+  MCU gained two 32-bit memory-mapped counters for Dhrystone.
+- Cause: 64 flip-flops, two 32-bit incrementers and a wider I/O mux,
+  about 100 LCs on a 1280-LC part.
+- Fix: `Config.counters`, off for the iCEstick, on for the i9 (1093 LCs).
+- Regression: the MAX_LC budget itself.
 
 ### B-0008: naming check ignored leading whitespace under mawk
 

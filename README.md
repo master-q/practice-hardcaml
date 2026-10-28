@@ -16,10 +16,13 @@ project log.
 | Directory | Description | Stages |
 |-----------|-------------|--------|
 | [ip/uart](ip/uart/) | 8N1 UART transmitter and receiver | S1, S2 |
-| [ip/rv32e](ip/rv32e/) | Multi-cycle RV32E core | S0 (SAT proofs), S1 (lockstep, random programs) |
+| [ip/rv32](ip/rv32/) | Multi-cycle RV32I / RV32E core | S0 (SAT proofs), S1 (lockstep, random programs) |
 | [designs/blink](designs/blink/) | LED blinker | S1, S3 |
 | [designs/hello](designs/hello/) | Prints "Hello, iCEstick!" at 115200 baud | S1, S2, S3 |
-| [designs/mcu](designs/mcu/) | RV32E MCU running C firmware (UART echo) | S1, S2, S3 |
+| [designs/mcu](designs/mcu/) | RV32E MCU on the iCEstick running C firmware (UART echo) | S1, S2, S3 |
+| [designs/mcu_i9](designs/mcu_i9/) | RV32I MCU on the Colorlight i9 (ECP5) running Dhrystone | S1, S3 |
+| [ip/mcu](ip/mcu/) | The MCU (core + RAM + UART + LEDs + counters), shared by both boards | S1, S2 |
+| [bench/ref_cores](bench/ref_cores/) | Area and Dhrystone of reference cores ([docs/BENCHMARKS.md](docs/BENCHMARKS.md)) | -- |
 | [models/rv32_model](models/rv32_model/) | RV32E golden model and assembler | tests |
 | [sw](sw/) | MCU firmware (C, built with riscv64-unknown-elf-gcc) | -- |
 
@@ -46,6 +49,17 @@ once with placeholder RAM contents, and `icebram` writes the new program
 into the existing bitstream. `make mcu-prog` after editing
 `sw/echo/main.c` takes about a second plus flashing; only HDL changes
 re-run Yosys and nextpnr (about 16 s).
+
+## Running the MCU on a Colorlight i9 v7.2
+
+    make i9-prog   # build designs/mcu_i9 with sw/dhrystone_rv32i.bin, load it
+    make i9-term   # picocom -b 115200 /dev/ttyACM0 (override with I9_TTY=...)
+
+The UART goes through the ext board's DAPLink (USB CDC serial). The
+firmware runs Dhrystone (500 runs) and prints cycles and DMIPS; reset the
+board (or reload) to run it again. `make -C designs/mcu_i9 flash` writes
+the SPI flash instead of the FPGA's SRAM. Results so far are from
+simulation only; see [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
 ## Toolchain
 

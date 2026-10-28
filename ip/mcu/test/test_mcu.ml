@@ -53,8 +53,8 @@ let%expect_test "i9 configuration: Dhrystone (50 runs), in lockstep" =
   in
   print_result r;
   [%expect {|
-    "dhrystone: runs=50 cycles=128090 instret=30133\r\nMicroseconds for one run through Dhrystone: 2560\r\nDhrystones per Second:                      390\r\n"
-    leds=0 retired=46999 trap=2
+    "dhrystone: runs=50 cycles=128112 instret=30138\r\ndhrystone: DMIPS/MHz=0.222\r\nMicroseconds for one run through Dhrystone: 2560\r\nDhrystones per Second:                      390\r\n"
+    leds=0 retired=48211 trap=2
     lockstep: ok
     |}]
 ;;

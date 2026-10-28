@@ -3,6 +3,41 @@
 A dated log of the project, newest entry first. Each entry records what was
 done, what was learned, and the numbers measured that day.
 
+## 2026-10-28 (later): RV32I, Colorlight i9 port, Dhrystone and comparison
+
+Direction (maintainer): target the Colorlight i9 v7.2 (ECP5 LFE5U-45F)
+instead of pico-ice; first RV32I plus a Dhrystone and area comparison with
+the riscv-ice40 survey cores; pipeline, M, MMU, caches/SDRAM, Ethernet MAC
+and dual core are deferred to issues.
+
+- RV32I: the golden model, decoder and core take `base` (Rv32i | Rv32e).
+  The decoder matches the model on 362k words for both; random lockstep
+  passes for both (31k and 41k instructions). The register file grows
+  from 16 to 32 entries at no block-RAM cost.
+- ip/rv32e renamed ip/rv32; the MCU moved to ip/mcu with a Config
+  (base, RAM size, baud divider, optional counters); designs/mcu and the
+  new designs/mcu_i9 are thin board tops sharing ip/mcu/gen.
+- Firmware: minimal libc (printf, string functions), linker scripts per
+  RAM size, sw/build.sh; Dhrystone 2.2 from riscv-tests (BSD) with a
+  harness reading memory-mapped CYCLE/INSTRET.
+- Dhrystone runs in Cyclesim in lockstep with the model (48k instructions,
+  no mismatch): 2562 cycles/run, CPI 4.25, 0.222 DMIPS/MHz.
+- Colorlight i9 flow (mk/ecp5.mk): synth_ecp5, nextpnr-ecp5, ecpbram swap
+  (bit-identical to direct synthesis), ecppack, openFPGALoader. 1491/43848
+  LUT slots, 340 FFs, 32 DP16KD (64 KiB), 57 MHz against 25 MHz. Pins from
+  wuxx/Colorlight-FPGA-Projects (clock P3, UART J17/H18 via the ext
+  board's DAPLink, LED L2); not yet tried on hardware.
+- Reference comparison (docs/BENCHMARKS.md): same Dhrystone binary on
+  PicoRV32 and FemtoRV32 Quark in iverilog; core-only area for those and
+  Hazard3. rv32 is the smallest core in LUTs; its Dhrystone score (0.222)
+  sits between PicoRV32 with 1-cycle memory (0.172) / zero-wait memory
+  (0.231) and FemtoRV32 Quark (0.279). The 4-cycle minimum per
+  instruction (single-port register file in block RAM) is the main cost.
+- Build-time finding: per-byte `initial` assignments for 64 KiB took Yosys
+  5.5 minutes; `$readmemh` takes seconds (B-0012).
+- Defects: B-0009..B-0012 (one resource, caught by the LC budget; the rest
+  in scripts and testbenches). Again no functional RTL defect.
+
 ## 2026-10-28: RV32E MCU running C over UART (simulation and synthesis)
 
 - Layout: reusable blocks in `ip/`, board top levels in `designs/`, golden

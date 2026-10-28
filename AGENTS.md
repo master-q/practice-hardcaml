@@ -71,14 +71,17 @@ Follows the usual HDL split between reusable IP and chip/board top levels
 | Path | What |
 |------|------|
 | `ip/uart/` | 8N1 UART transmitter and receiver; bench with line driver and monitors |
-| `ip/rv32e/` | RV32E core: ALU, immediate generator, decoder, multi-cycle core; lockstep bench |
+| `ip/rv32/` | RV32I/RV32E core: ALU, immediate generator, decoder, multi-cycle core; lockstep bench |
+| `ip/mcu/` | The MCU (core + RAM + UART + LEDs + counters) with a `Config.t`; `gen/` holds the board generators' shared code |
 | `designs/blink/` | LED blinker, the smallest end-to-end example |
 | `designs/hello/` | Prints "Hello, iCEstick!" over the UART |
-| `designs/mcu/` | RV32E microcontroller: core + 4 KiB BRAM + UART + LEDs, runs C firmware |
-| `models/rv32_model/` | RV32E golden model (OCaml), MMIO hooks, tiny assembler |
-| `sw/` | Firmware for `designs/mcu` (crt0, linker script, `mcu.h`, programs) |
+| `designs/mcu/` | iCEstick top for the MCU (RV32E, 4 KiB) |
+| `designs/mcu_i9/` | Colorlight i9 (ECP5 LFE5U-45F) top for the MCU (RV32I, 64 KiB); `mk/ecp5.mk` flow |
+| `bench/ref_cores/` | Reference cores (riscv-ice40 survey): area and Dhrystone, see docs/BENCHMARKS.md |
+| `models/rv32_model/` | RV32I/RV32E golden model (OCaml), MMIO hooks, tiny assembler |
+| `sw/` | Firmware (crt0, linker scripts, `mcu.h`, minimal libc, echo, Dhrystone) |
 | `testlib/` | Test helpers: ASCII waveforms, shared Verilator config |
-| `mk/icestick.mk` | Shared HardCaml -> Yosys -> nextpnr -> icepack rules |
+| `mk/icestick.mk`, `mk/ecp5.mk` | Shared board flows (iCE40: icepack/icebram; ECP5: ecppack/ecpbram) |
 | `scripts/` | Policy and S3 checks (`check_ascii.sh`, `check_names.sh`, `check_resources.sh`) |
 | `docs/WORKFLOW.md` | HDL landscape, AI-assisted workflows, and the workflow we adopt |
 
@@ -118,4 +121,7 @@ Toolchain notes:
 - hardcaml_waveterm draws Unicode boxes; print waveforms with
   `Testlib.Ascii_wave.print` to stay ASCII.
 - `Hardcaml_verify.Sec` calls the `z3` binary.
-- Firmware: `riscv64-unknown-elf-gcc -march=rv32e -mabi=ilp32e`, see `sw/dune`.
+- Firmware: `riscv64-unknown-elf-gcc` with `-march=rv32e -mabi=ilp32e` (iCEstick)
+  or `-march=rv32i -mabi=ilp32` (i9), see `sw/build.sh` and `sw/dune`.
+- Memory initial contents: emit `$readmemh` (ip/mcu/gen), never one
+  assignment per word: Yosys took 5.5 minutes for 64 KiB that way.

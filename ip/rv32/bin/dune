@@ -1,0 +1,3 @@
+(executable
+ (name core_verilog)
+ (libraries rv32 rv32_model hardcaml))
