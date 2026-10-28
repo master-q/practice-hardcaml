@@ -1,5 +1,5 @@
 (executable
  (name run)
- (libraries rv32_model base stdio)
+ (libraries rv32_model rv32_bench base stdio)
  (preprocess
   (pps ppx_jane)))

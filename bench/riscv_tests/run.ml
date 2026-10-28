@@ -3,7 +3,10 @@
    case n failed. Issue #25: the independent check of the model's A (and
    later privilege and virtual-memory) behaviour.
 
-     run.exe DIR... *)
+     run.exe DIR...          on the golden model
+     run.exe --core DIR...   on the i9 core configuration with M and A, in
+                             lockstep with the model (#5; `p` tests of the
+                             user-level groups: the core has no S-mode yet) *)
 open! Base
 open Stdio
 module M = Rv32_model.Machine
@@ -17,6 +20,37 @@ let words_of_file path =
       let i = (4 * k) + b in
       if i < String.length s then acc lor (Char.to_int s.[i] lsl (8 * b)) else acc))
 ;;
+
+let run_core dir name ~tohost =
+  let r =
+    Rv32_bench.Core_harness.run
+      ~zicsr:true
+      ~dual_read:true
+      ~fetch_overlap:true
+      ~m:true
+      ~a:true
+      ~base:Rv32i
+      ~mem_base:0x8000_0000
+      ~mem_bytes
+      ~max_cycles:5_000_000
+      ~stop_on_write:tohost
+      (words_of_file (dir ^ "/" ^ name ^ ".bin"))
+  in
+  let result =
+    match r.mismatch, r.stop_value with
+    | Some m, _ -> Error ("lockstep: " ^ m)
+    | None, Some 1 -> Ok ()
+    | None, Some v -> Error (Printf.sprintf "test case %d failed" (v lsr 1))
+    | None, None ->
+      Error
+        (Printf.sprintf
+           "did not finish (trap %s)"
+           (Option.value_map r.trap ~default:"none" ~f:Int.to_string))
+  in
+  r.retired, result
+;;
+
+let core = ref false
 
 let run_test dir name =
   let tohost =
@@ -40,6 +74,14 @@ let run_test dir name =
                     else Error (Printf.sprintf "test case %d failed" (value lsr 1))))
     }
   in
+  if !core
+  then (
+    let n, result = run_core dir name ~tohost in
+    (match result with
+     | Ok () -> printf "PASS %-24s %6d instructions (core)\n" name n
+     | Error e -> printf "FAIL %-24s %s (core)\n" name e);
+    Result.is_ok result)
+  else (
   let t =
     M.create ~io ~s:true ~m:true ~a:true ~zifencei:true ~mem_base:0x8000_0000 ~base:Rv32i ~mem_bytes ()
   in
@@ -58,11 +100,17 @@ let run_test dir name =
   (match result with
    | Ok () -> printf "PASS %-24s %6d instructions\n" name n
    | Error e -> printf "FAIL %-24s %s\n" name e);
-  Result.is_ok result
+  Result.is_ok result)
 ;;
 
 let () =
-  let dirs = Sys.get_argv () |> Array.to_list |> List.tl_exn in
+  let dirs =
+    match Sys.get_argv () |> Array.to_list |> List.tl_exn with
+    | "--core" :: dirs ->
+      core := true;
+      dirs
+    | dirs -> dirs
+  in
   let names =
     List.concat_map dirs ~f:(fun dir ->
       Stdlib.Sys.readdir dir

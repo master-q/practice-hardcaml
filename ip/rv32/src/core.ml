@@ -124,12 +124,20 @@ let create
   ?m:(ext_m = false)
   ?a:(ext_a = false)
   ?(zifencei = false)
+  ?(reset_pc = 0)
   ~(base : Rv32_model.Isa.base) scope (i : _ I.t) =
   let reg_bits = Int.ceil_log2 (Rv32_model.Isa.num_regs base) in
   let spec = Reg_spec.create ~clock:i.clock ~clear:i.clear () in
   let sm = Always.State_machine.create (module State) spec in
   ignore (sm.current -- "state" : Signal.t);
-  let%hw_var pc = Always.Variable.reg ~width:32 spec in
+  (* [reset_pc]: where execution starts (0 for the MCUs). *)
+  let%hw_var pc =
+    Always.Variable.reg
+      ~width:32
+      (if reset_pc = 0
+       then spec
+       else Reg_spec.override spec ~clear_to:(Signal.of_int ~width:32 reset_pc))
+  in
   let%hw_var ir_reg = Always.Variable.reg ~width:32 spec in
   let%hw_var rs1_value = Always.Variable.reg ~width:32 spec in
   let%hw_var shift_value = Always.Variable.reg ~width:32 spec in
@@ -615,10 +623,10 @@ let create
   }
 ;;
 
-let hierarchical ?zicsr ?dual_read ?fetch_overlap ?m ?a ?zifencei ~base scope =
+let hierarchical ?zicsr ?dual_read ?fetch_overlap ?m ?a ?zifencei ?reset_pc ~base scope =
   let module H = Hierarchy.In_scope (I) (O) in
   H.hierarchical
     ~scope
     ~name:"rv32_core"
-    (create ?zicsr ?dual_read ?fetch_overlap ?m ?a ?zifencei ~base)
+    (create ?zicsr ?dual_read ?fetch_overlap ?m ?a ?zifencei ?reset_pc ~base)
 ;;

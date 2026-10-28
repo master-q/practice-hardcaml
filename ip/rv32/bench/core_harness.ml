@@ -11,14 +11,24 @@ type result =
   ; trap : int option
   ; mismatch : string option
   ; memory : (Bytes.t[@sexp.opaque]) (* final memory contents *)
+  ; stop_value : int option (* the word written to [stop_on_write] *)
   }
 [@@deriving sexp_of]
 
-let create_sim ?zicsr ?dual_read ?fetch_overlap ?m ?a ~base () =
+let create_sim ?zicsr ?dual_read ?fetch_overlap ?m ?a ?reset_pc ~base () =
   let scope = Scope.create ~flatten_design:true () in
   Sim.create
     ~config:Cyclesim.Config.trace_all
-    (Rv32.Core.create ?zicsr ?dual_read ?fetch_overlap ?m ?a ?zifencei:(Option.map m ~f:Fn.id) ~base scope)
+    (Rv32.Core.create
+       ?zicsr
+       ?dual_read
+       ?fetch_overlap
+       ?m
+       ?a
+       ?zifencei:m
+       ?reset_pc
+       ~base
+       scope)
 ;;
 
 (* [model_program] (default: [program]) exists to test the checker itself.
@@ -32,6 +42,7 @@ let run
   ?(m = false)
   ?(a = false)
   ?(mem_base = 0)
+  ?stop_on_write
   ?(irq = fun (_ : int) -> 0)
   ?checker_irq
   ?(base = Rv32_model.Isa.Rv32e)
@@ -41,7 +52,7 @@ let run
   ?model_program
   program
   =
-  let sim = match sim with Some s -> s | None -> create_sim ~zicsr ?dual_read ?fetch_overlap ~m ~a ~base () in
+  let sim = match sim with Some s -> s | None -> create_sim ~zicsr ?dual_read ?fetch_overlap ~m ~a ~reset_pc:mem_base ~base () in
   let lockstep =
     Lockstep.create ~zicsr ~m ~a ~mem_base ~base ~mem_bytes ~program:(Option.value model_program ~default:program) ()
   in
@@ -51,10 +62,14 @@ let run
   let i = Cyclesim.inputs sim in
   let o = Cyclesim.outputs ~clock_edge:Before sim in
   let irq_fetch = ref 0 in
+  (* One cycle of clear: registers take their reset values (pc = mem_base). *)
+  i.clear := Bits.vdd;
+  Cyclesim.cycle sim;
+  i.clear := Bits.gnd;
   let word addr = Stdlib.Bytes.get_int32_le mem (addr land (mem_bytes - 4)) in
   let rec loop cycle read_data =
     if cycle >= max_cycles
-    then { retired = lockstep.retired; interrupts = lockstep.interrupts; cycles = cycle; trap = None; mismatch = lockstep.mismatch; memory = mem }
+    then { retired = lockstep.retired; interrupts = lockstep.interrupts; cycles = cycle; trap = None; mismatch = lockstep.mismatch; memory = mem; stop_value = None }
     else (
       i.mem_rdata := Bits.of_int32 ~width:32 read_data;
       i.irq := Bits.of_int ~width:3 (irq cycle);
@@ -71,10 +86,16 @@ let run
       then (
         let trap = Bits.to_int !(o.trap) in
         Lockstep.on_halt lockstep ~trap;
-        { retired = lockstep.retired; interrupts = lockstep.interrupts; cycles = cycle; trap = Some trap; mismatch = lockstep.mismatch; memory = mem })
+        { retired = lockstep.retired; interrupts = lockstep.interrupts; cycles = cycle; trap = Some trap; mismatch = lockstep.mismatch; memory = mem; stop_value = None })
       else (
         if Bits.to_bool !(o.retire) then Lockstep.on_retire ~irq:irq_now ~irq_fetch:boundary_irq lockstep o;
         let addr = Bits.to_int !(o.mem_addr) in
+        let stop =
+          match stop_on_write with
+          | Some at when Bits.to_bool !(o.mem_write) && Bits.to_int !(o.mem_addr) = at ->
+            Some (Bits.to_int !(o.mem_wdata))
+          | _ -> None
+        in
         if Bits.to_bool !(o.mem_write)
         then (
           let mask = Bits.to_int !(o.mem_wmask) in
@@ -90,9 +111,19 @@ let run
         let next = if Bits.to_bool !(o.mem_read) then word addr else read_data in
         Cyclesim.cycle_at_clock_edge sim;
         Cyclesim.cycle_after_clock_edge sim;
-        if Option.is_some lockstep.mismatch
+        if Option.is_some stop
         then
-          { retired = lockstep.retired; interrupts = lockstep.interrupts; cycles = cycle; trap = None; mismatch = lockstep.mismatch; memory = mem }
+          { retired = lockstep.retired
+          ; interrupts = lockstep.interrupts
+          ; cycles = cycle
+          ; trap = None
+          ; mismatch = lockstep.mismatch
+          ; memory = mem
+          ; stop_value = stop
+          }
+        else if Option.is_some lockstep.mismatch
+        then
+          { retired = lockstep.retired; interrupts = lockstep.interrupts; cycles = cycle; trap = None; mismatch = lockstep.mismatch; memory = mem; stop_value = None }
         else loop (cycle + 1) next))
   in
   loop 0 0l
