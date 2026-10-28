@@ -27,6 +27,9 @@
      extensions with [s]). Other CSRs are illegal, as are writes to
      read-only CSRs (address bits 11..10 = 3) and accesses from a lower
      privilege than the address requires (bits 9..8).
+   - With [s]: no PMP entries and no debug triggers; their CSRs
+     (pmpcfg*, pmpaddr*, tselect, tdata1-3, tcontrol...) read as zero and
+     ignore writes, so software may program them without trapping.
 
    M and A extensions ([m], [a]; issue #25):
    - Division by zero and signed overflow give the results the spec
@@ -339,6 +342,8 @@ let csr_read t csr =
     | 0x105 -> Some t.stvec
     | 0x106 -> Some t.scounteren
     | 0x10a -> Some 0 (* senvcfg *)
+    | _ when (csr >= 0x3a0 && csr <= 0x3ef) || (csr >= 0x7a0 && csr <= 0x7a5) ->
+      Some 0 (* PMP (no entries) and debug triggers (none): read zero *)
     | 0x140 -> Some t.sscratch
     | 0x141 -> Some t.sepc
     | 0x142 -> Some t.scause

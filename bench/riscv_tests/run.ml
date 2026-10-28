@@ -22,18 +22,37 @@ let run_test dir name =
   let tohost =
     Int.of_string ("0x" ^ String.strip (In_channel.read_all (dir ^ "/" ^ name ^ ".tohost")))
   in
-  let t = M.create ~zicsr:true ~m:true ~a:true ~zifencei:true ~base:Rv32i ~mem_bytes () in
+  (* tohost is watched as a physical I/O location: the `v` environment
+     writes it through a kernel virtual mapping. Reads return 0 (the host
+     has consumed the previous value). *)
+  let result = ref None in
+  let io =
+    { M.is_io = (fun pa -> pa = tohost || pa = tohost + 4)
+    ; load = (fun ~addr:_ ~bytes:_ -> 0)
+    ; store =
+        (fun ~addr ~bytes:_ ~value ->
+          if addr = tohost && value <> 0 && Option.is_none !result
+          then
+            result
+              := Some
+                   (if value = 1
+                    then Ok ()
+                    else Error (Printf.sprintf "test case %d failed" (value lsr 1))))
+    }
+  in
+  let t =
+    M.create ~io ~s:true ~m:true ~a:true ~zifencei:true ~mem_base:0x8000_0000 ~base:Rv32i ~mem_bytes ()
+  in
   M.load_program t (words_of_file (dir ^ "/" ^ name ^ ".bin"));
   let rec go n =
-    if n > 1_000_000
-    then n, Error "did not finish"
-    else (
-      match M.step t with
-      | Ok { mem_write = Some (addr, _, v); _ } when addr = tohost ->
-        n + 1, if v = 1 then Ok () else Error (Printf.sprintf "test case %d failed" (v lsr 1))
-      | Ok _ -> go (n + 1)
-      | Error trap ->
-        n, Error ("trap without handler: " ^ Sexp.to_string (M.sexp_of_trap trap)))
+    match !result with
+    | Some r -> n, r
+    | None when n > 5_000_000 -> n, Error "did not finish"
+    | None ->
+      (match M.step t with
+       | Ok _ -> go (n + 1)
+       | Error trap ->
+         n, Error ("trap without handler: " ^ Sexp.to_string (M.sexp_of_trap trap)))
   in
   let n, result = go 0 in
   (match result with

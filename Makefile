@@ -15,7 +15,7 @@
 #                   top (firmware in BRAM INIT) (post-synthesis stage S2n);
 #                   netlist-sim-i9 does the i9 board top (slow, in ci)
 #   make arch-test  riscv-arch-test RV32I on the core, M on the golden model
-#   make riscv-tests riscv-tests (rv32ui/um/ua, self-checking) on the golden
+#   make riscv-tests riscv-tests (ui/um/ua p and v, mi, si; self-checking) on the golden
 #                   model (fetches them once; #25)
 #   make ci         everything above, including verilate and icebram-check
 #

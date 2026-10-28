@@ -1,10 +1,12 @@
-# riscv-tests (self-checking, `p` environment) on the golden model (#25):
-# the independent check for the model's user-level I, M and A behaviour.
-# Privilege (rv32mi/rv32si) and virtual-memory (`v`) groups follow as the
-# model gains S/U modes and Sv32. Needs network access the first time.
+# riscv-tests (self-checking) on the golden model (#25): the independent
+# check for its I, M, A, privilege (rv32mi, rv32si) and Sv32 behaviour.
+# `p` tests run bare; `v` tests run the user-level groups in U-mode under
+# riscv-tests' small S-mode kernel with Sv32 demand paging (Svade: it sets
+# A/D itself). Needs network access the first time.
 ROOT := $(abspath ../..)
 RUN := $(ROOT)/_build/default/bench/riscv_tests/run.exe
-GROUPS := rv32ui rv32um rv32ua
+GROUPS := rv32ui rv32um rv32ua rv32mi rv32si
+V_GROUPS := rv32ui rv32um rv32ua
 MARCH := rv32ima_zicsr_zifencei
 
 all: run
@@ -14,13 +16,14 @@ fetch:
 
 build: fetch
 	@for g in $(GROUPS) selftest; do ./build.sh $$g $(MARCH) build/$$g || exit 1; done
+	@for g in $(V_GROUPS); do ./build.sh $$g $(MARCH) build/$${g}_v v || exit 1; done
 
 run: build
 	cd $(ROOT) && dune build ./bench/riscv_tests/run.exe
 	@if $(RUN) build/selftest > /dev/null; \
 	  then echo "FAIL: riscv-tests runner accepted a failing test" >&2; exit 1; \
 	  else echo "OK: riscv-tests runner rejects a failing test"; fi
-	$(RUN) $(addprefix build/,$(GROUPS))
+	$(RUN) $(addprefix build/,$(GROUPS)) $(addsuffix _v,$(addprefix build/,$(V_GROUPS)))
 
 clean:
 	rm -rf build
