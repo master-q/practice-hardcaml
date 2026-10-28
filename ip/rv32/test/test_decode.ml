@@ -24,6 +24,9 @@ let model_class w =
   | Fence -> "fence"
   | Ecall -> "ecall"
   | Ebreak -> "ebreak"
+  | Csr _ -> "csr"
+  | Mret -> "mret"
+  | Wfi -> "wfi"
   | Illegal _ -> "illegal"
 ;;
 
