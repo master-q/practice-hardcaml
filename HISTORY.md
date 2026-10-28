@@ -3,6 +3,19 @@
 A dated log of the project, newest entry first. Each entry records what was
 done, what was learned, and the numbers measured that day.
 
+## 2026-10-29: fetch overlap (#4, step 2)
+
+- Core ~fetch_overlap: an instruction that does not use the memory bus
+  fetches its successor in Execute at the exact next pc and goes on to
+  Decode; not after CSR/MRET, not when an interrupt is due. The `fetch`
+  output marks the boundary where the interrupt decision is made, and
+  the benches sample irq there.
+- Lockstep (random programs with and without random interrupts, directed
+  interrupt tests, riscv-arch-test 37/37, the i9 netlist stages) passed
+  on the first run; no defect.
+- i9 Dhrystone: CPI 3.26 -> 2.64, 1535 cycles/run, 0.370 DMIPS/MHz
+  (9.3 DMIPS at 25 MHz). 2874 TRELLIS_COMB, 53.8 MHz. iCEstick unchanged.
+
 ## 2026-10-29: post-synthesis stage for the ECP5 (S2n); B-0022, B-0023
 
 - docs/WORKFLOW.md and BUGS.md stage tables brought up to date (S2b was

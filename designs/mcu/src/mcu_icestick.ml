@@ -22,6 +22,7 @@ let config =
   ; counters = false
   ; zicsr = false
   ; dual_read = false
+  ; fetch_overlap = false
   }
 ;;
 

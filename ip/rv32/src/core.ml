@@ -4,7 +4,15 @@
    one (Load); shifts add 1 + shamt (Shift, one bit per cycle, to save the
    area of a barrel shifter). With [~dual_read:true] (issue #4, the ECP5
    MCU) the register file has a second copy, so Decode reads rs1 and rs2
-   together and Read_rs2 is skipped: 3 cycles per instruction.
+   together and Read_rs2 is skipped: 3 cycles per instruction. With
+   [~fetch_overlap:true] (#4) an instruction that does not use the memory
+   bus fetches its successor in Execute, at the exact next pc (branches
+   are resolved there), and the core goes straight to Decode: 2 cycles
+   with dual_read. Not after CSR instructions and MRET (they may change
+   the interrupt enables) and not when an interrupt would be taken at
+   this boundary (it is then taken in Fetch as before). The [fetch]
+   output marks the cycle where the interrupt decision for the next
+   boundary is made: Fetch, or the overlapping Execute.
 
    Memory bus: [mem_addr] with [mem_read] or [mem_write] is valid for one
    cycle; read data must be on [mem_rdata] in the next cycle. Writes carry a
@@ -96,7 +104,7 @@ module State = struct
   [@@deriving sexp_of, compare ~localize, enumerate]
 end
 
-let create ?(zicsr = false) ?(dual_read = false) ~(base : Rv32_model.Isa.base) scope (i : _ I.t) =
+let create ?(zicsr = false) ?(dual_read = false) ?(fetch_overlap = false) ~(base : Rv32_model.Isa.base) scope (i : _ I.t) =
   let reg_bits = Int.ceil_log2 (Rv32_model.Isa.num_regs base) in
   let spec = Reg_spec.create ~clock:i.clock ~clear:i.clear () in
   let sm = Always.State_machine.create (module State) spec in
@@ -226,9 +234,8 @@ let create ?(zicsr = false) ?(dual_read = false) ~(base : Rv32_model.Isa.base) s
   (* mie/mip bits 3, 7, 11 are stored as bits 0, 1, 2. *)
   let spread3 v = uresize (v.:(2) @: zero 3 @: v.:(1) @: zero 3 @: v.:(0) @: zero 3) 32 in
   let%hw irq_pending = if zicsr then i.irq &: mie.value else zero 3 in
-  let%hw take_irq =
-    handler &: mstatus_mie.value &: (irq_pending <>:. 0) &: sm.is Fetch
-  in
+  let%hw irq_due = handler &: mstatus_mie.value &: (irq_pending <>:. 0) in
+  let%hw take_irq = irq_due &: sm.is Fetch in
   let%hw irq_code =
     mux2
       irq_pending.:(2)
@@ -285,6 +292,12 @@ let create ?(zicsr = false) ?(dual_read = false) ~(base : Rv32_model.Isa.base) s
   let%hw_var retire_trap = Always.Variable.wire ~default:gnd in
   let%hw_var retire_cause = Always.Variable.wire ~default:(zero 32) in
   let%hw_var retire_irq = Always.Variable.wire ~default:gnd in
+  let%hw_var overlapping = Always.Variable.wire ~default:gnd in
+  let%hw overlap_ok =
+    if fetch_overlap
+    then ~:(dec.store |: dec.load |: dec.csr |: dec.mret |: irq_due)
+    else gnd
+  in
   let enter_trap ~cause ~tval =
     Always.
       [ retire <-- vdd
@@ -401,6 +414,12 @@ let create ?(zicsr = false) ?(dual_read = false) ~(base : Rv32_model.Isa.base) s
                                               (complete
                                                  ~result:(mux2 dec.csr csr_old exec_result)
                                                  ~next:(mux2 dec.mret mepc.value next_pc))
+                                          ; when_
+                                              overlap_ok
+                                              [ mem_read <-- vdd
+                                              ; overlapping <-- vdd
+                                              ; sm.set_next Decode
+                                              ]
                                           ]
                                       ]
                                   ]
@@ -425,7 +444,12 @@ let create ?(zicsr = false) ?(dual_read = false) ~(base : Rv32_model.Isa.base) s
           ; Halted, []
           ]
       ]);
-  let%hw mem_addr = mux2 (sm.is Fetch) pc.value agu in
+  let%hw mem_addr =
+    mux2
+      (sm.is Fetch)
+      pc.value
+      (if fetch_overlap then mux2 (dec.load |: dec.store) agu next_pc else agu)
+  in
   { O.mem_addr
   ; mem_read = mem_read.value
   ; mem_write = mem_write.value
@@ -448,11 +472,11 @@ let create ?(zicsr = false) ?(dual_read = false) ~(base : Rv32_model.Isa.base) s
   ; retire_cause = retire_cause.value
   ; csr_mcycle = mcycle.value
   ; csr_minstret = minstret.value
-  ; fetch = sm.is Fetch
+  ; fetch = sm.is Fetch |: overlapping.value
   }
 ;;
 
-let hierarchical ?zicsr ?dual_read ~base scope =
+let hierarchical ?zicsr ?dual_read ?fetch_overlap ~base scope =
   let module H = Hierarchy.In_scope (I) (O) in
-  H.hierarchical ~scope ~name:"rv32_core" (create ?zicsr ?dual_read ~base)
+  H.hierarchical ~scope ~name:"rv32_core" (create ?zicsr ?dual_read ?fetch_overlap ~base)
 ;;

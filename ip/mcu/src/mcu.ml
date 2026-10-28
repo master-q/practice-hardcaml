@@ -39,6 +39,7 @@ module Config = struct
     ; counters : bool (* CYCLE and INSTRET; read as 0 when false *)
     ; zicsr : bool (* CSRs, traps, interrupts and their sources (#3) *)
     ; dual_read : bool (* second register-file copy, 3-cycle ALU ops (#4) *)
+    ; fetch_overlap : bool (* fetch the next instruction in Execute (#4) *)
     }
 
   let ram_words t = t.ram_bytes / 4
@@ -86,6 +87,7 @@ let create (config : Config.t) scope (i : _ I.t) =
     Rv32.Core.hierarchical
       ~zicsr:config.zicsr
       ~dual_read:config.dual_read
+      ~fetch_overlap:config.fetch_overlap
       ~base:config.base
       scope
       { Rv32.Core.I.clock = i.clock; clear; mem_rdata; irq }

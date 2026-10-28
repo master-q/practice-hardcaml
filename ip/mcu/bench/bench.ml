@@ -13,10 +13,10 @@ let clocks_per_bit = 4
 
 (* Simulation configurations: the boards' ISA and RAM, a fast UART. *)
 let icestick =
-  { Mcu.Config.base = Rv32e; ram_bytes = 4096; clocks_per_bit; counters = false; zicsr = false; dual_read = false }
+  { Mcu.Config.base = Rv32e; ram_bytes = 4096; clocks_per_bit; counters = false; zicsr = false; dual_read = false; fetch_overlap = false }
 ;;
 
-let i9 = { Mcu.Config.base = Rv32i; ram_bytes = 65536; clocks_per_bit; counters = false; zicsr = true; dual_read = true }
+let i9 = { Mcu.Config.base = Rv32i; ram_bytes = 65536; clocks_per_bit; counters = false; zicsr = true; dual_read = true; fetch_overlap = true }
 let create config scope = Mcu.create config scope
 
 let words_of_image image =
@@ -101,6 +101,12 @@ let run
     Cyclesim.cycle sim;
     on_cycle !cycle;
     let irq = Bits.to_int !(o.irq) in
+    let boundary_irq =
+      if Bits.to_bool !(o.core.retire_trap)
+         && Bits.to_int !(o.core.retire_cause) land 0x8000_0000 <> 0
+      then irq
+      else !irq_fetch
+    in
     if Bits.to_bool !(o.core.fetch) then irq_fetch := irq;
     if Bits.to_bool !(o.core.halted)
     then (
@@ -108,7 +114,7 @@ let run
       Rv32_bench.Lockstep.on_halt lockstep ~trap:code;
       trap := Some code)
     else if Bits.to_bool !(o.core.retire)
-    then Rv32_bench.Lockstep.on_retire ~irq ~irq_fetch:!irq_fetch lockstep o.core;
+    then Rv32_bench.Lockstep.on_retire ~irq ~irq_fetch:boundary_irq lockstep o.core;
     (match Uart_bench.Uart_monitor.step monitor (Bits.to_bool !(o.uart_tx)) with
      | Some c ->
        Buffer.add_char output c;

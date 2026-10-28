@@ -6,7 +6,8 @@ EXPECT_BRAM := 32
 # with packing; other Yosys/nextpnr releases differ further, B-0015).
 # 2026-10-29, pinned toolchain: 1438 without Zicsr, 2516 with Zicsr,
 # interrupts and the timer (#3), MMIO CYCLE/INSTRET dropped (the CSRs
-# replace them); 2766 with the second register-file copy (#4). The
+# replace them); 2766 with the second register-file copy (#4); 2874 with
+# the fetch overlap (#4). The
 # LFE5U-45F has 43,848 LUTs.
 # Raise deliberately and note why in HISTORY.md.
 MAX_LC := 3200

@@ -196,7 +196,7 @@ let random_program rng ~nregs ~length =
   setup @ body @ [ A.ebreak ]
 ;;
 
-let random_programs ?dual_read ~base () =
+let random_programs ?dual_read ?fetch_overlap ~base () =
   let nregs = Rv32_model.Isa.num_regs base in
   let rng = Random.State.make [| 2026 |] in
   let programs = 300 in
@@ -204,7 +204,7 @@ let random_programs ?dual_read ~base () =
   let failures = ref 0 in
   for n = 1 to programs do
     let program = random_program rng ~nregs ~length:80 in
-    let r = H.run ?dual_read ~base program in
+    let r = H.run ?dual_read ?fetch_overlap ~base program in
     retired := !retired + r.retired;
     match r.mismatch, r.trap with
     | None, Some 2 -> ()
@@ -230,8 +230,10 @@ let%expect_test "random programs" =
   random_programs ~base:Rv32e ();
   random_programs ~base:Rv32i ();
   random_programs ~dual_read:true ~base:Rv32i ();
+  random_programs ~dual_read:true ~fetch_overlap:true ~base:Rv32i ();
   [%expect {|
     Rv32e: 300 programs, 31044 instructions, 0 failures
+    Rv32i: 300 programs, 40739 instructions, 0 failures
     Rv32i: 300 programs, 40739 instructions, 0 failures
     Rv32i: 300 programs, 40739 instructions, 0 failures
     |}]

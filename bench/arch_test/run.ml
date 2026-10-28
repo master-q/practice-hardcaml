@@ -3,7 +3,7 @@
    with the reference signature shipped with the tests (produced by
    independent simulators, so this also checks the golden model). Each
    test runs on the plain RV32I core and on the i9 configuration (Zicsr,
-   dual register-file read).
+   dual register-file read, fetch overlap).
 
      run.exe DIR    (DIR = build/tests) *)
 open! Base
@@ -31,10 +31,11 @@ let run_test ~config dir name =
     |> List.map ~f:(fun l -> Int.of_string ("0x" ^ String.strip l))
   in
   let r =
-    let zicsr, dual_read = config in
+    let zicsr, fast = config in
     Rv32_bench.Core_harness.run
       ~zicsr
-      ~dual_read
+      ~dual_read:fast
+      ~fetch_overlap:fast
       ~base:Rv32i
       ~mem_bytes
       ~max_cycles:20_000_000

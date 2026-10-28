@@ -140,11 +140,20 @@ let%expect_test "interrupts: each source, priority, masking" =
   run ~irq:(pulses [ 100, 3, 4 ]) (irq_program ~mie_bits:0x888);
   run ~irq:(pulses [ 100, 40, 7 ]) (irq_program ~mie_bits:0x888);
   run ~irq:(pulses [ 100, 40, 2 ]) (irq_program ~mie_bits:0x808);
+  let fast ~irq p =
+    show (H.run ~zicsr:true ~dual_read:true ~fetch_overlap:true ~irq ~base:Rv32i p)
+  in
+  fast ~irq:(pulses [ 100, 3, 2 ]) (irq_program ~mie_bits:0x888);
+  fast ~irq:(pulses [ 100, 40, 7 ]) (irq_program ~mie_bits:0x888);
+  fast ~irq:(pulses [ 100, 40, 2 ]) (irq_program ~mie_bits:0x808);
   [%expect {|
     retired=413 interrupts=1 trap=2
     retired=413 interrupts=1 trap=2
     retired=413 interrupts=1 trap=2
     retired=423 interrupts=3 trap=2
+    retired=408 trap=2
+    retired=413 interrupts=1 trap=2
+    retired=428 interrupts=4 trap=2
     retired=408 trap=2
     |}]
 ;;
@@ -229,7 +238,7 @@ let random_irqs rng =
   pulses (go (Random.State.int rng 100) [])
 ;;
 
-let random_programs ?dual_read ~base () =
+let random_programs ?dual_read ?fetch_overlap ~base () =
   let nregs = Rv32_model.Isa.num_regs base in
   let rng = Random.State.make [| 3 |] in
   let programs = 300 in
@@ -238,7 +247,7 @@ let random_programs ?dual_read ~base () =
   let interrupts = ref 0 in
   for n = 1 to programs do
     let program = random_program rng ~nregs ~length:80 in
-    let r = H.run ~zicsr:true ?dual_read ~irq:(random_irqs rng) ~base program in
+    let r = H.run ~zicsr:true ?dual_read ?fetch_overlap ~irq:(random_irqs rng) ~base program in
     retired := !retired + r.retired;
     interrupts := !interrupts + r.interrupts;
     match r.mismatch, r.trap with
@@ -266,9 +275,11 @@ let%expect_test "random programs with CSRs and interrupts" =
   random_programs ~base:Rv32e ();
   random_programs ~base:Rv32i ();
   random_programs ~dual_read:true ~base:Rv32i ();
+  random_programs ~dual_read:true ~fetch_overlap:true ~base:Rv32i ();
   [%expect {|
     Rv32e: 300 programs, 37701 instructions, 1014 interrupts, 0 failures
     Rv32i: 300 programs, 49918 instructions, 1682 interrupts, 0 failures
     Rv32i: 300 programs, 49569 instructions, 1594 interrupts, 0 failures
+    Rv32i: 300 programs, 48529 instructions, 1335 interrupts, 0 failures
     |}]
 ;;

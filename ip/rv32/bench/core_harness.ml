@@ -14,11 +14,11 @@ type result =
   }
 [@@deriving sexp_of]
 
-let create_sim ?zicsr ?dual_read ~base () =
+let create_sim ?zicsr ?dual_read ?fetch_overlap ~base () =
   let scope = Scope.create ~flatten_design:true () in
   Sim.create
     ~config:Cyclesim.Config.trace_all
-    (Rv32.Core.create ?zicsr ?dual_read ~base scope)
+    (Rv32.Core.create ?zicsr ?dual_read ?fetch_overlap ~base scope)
 ;;
 
 (* [model_program] (default: [program]) exists to test the checker itself.
@@ -28,6 +28,7 @@ let create_sim ?zicsr ?dual_read ~base () =
 let run
   ?(zicsr = false)
   ?dual_read
+  ?fetch_overlap
   ?(irq = fun (_ : int) -> 0)
   ?checker_irq
   ?(base = Rv32_model.Isa.Rv32e)
@@ -37,7 +38,7 @@ let run
   ?model_program
   program
   =
-  let sim = match sim with Some s -> s | None -> create_sim ~zicsr ?dual_read ~base () in
+  let sim = match sim with Some s -> s | None -> create_sim ~zicsr ?dual_read ?fetch_overlap ~base () in
   let lockstep =
     Lockstep.create ~zicsr ~base ~mem_bytes ~program:(Option.value model_program ~default:program) ()
   in
@@ -57,6 +58,11 @@ let run
       let irq_now = (Option.value checker_irq ~default:irq) cycle in
       Cyclesim.cycle_check sim;
       Cyclesim.cycle_before_clock_edge sim;
+      let boundary_irq =
+        if Bits.to_bool !(o.retire_trap) && Bits.to_int !(o.retire_cause) land 0x8000_0000 <> 0
+        then irq_now
+        else !irq_fetch
+      in
       if Bits.to_bool !(o.fetch) then irq_fetch := irq_now;
       if Bits.to_bool !(o.halted)
       then (
@@ -64,7 +70,7 @@ let run
         Lockstep.on_halt lockstep ~trap;
         { retired = lockstep.retired; interrupts = lockstep.interrupts; cycles = cycle; trap = Some trap; mismatch = lockstep.mismatch; memory = mem })
       else (
-        if Bits.to_bool !(o.retire) then Lockstep.on_retire ~irq:irq_now ~irq_fetch:!irq_fetch lockstep o;
+        if Bits.to_bool !(o.retire) then Lockstep.on_retire ~irq:irq_now ~irq_fetch:boundary_irq lockstep o;
         let addr = Bits.to_int !(o.mem_addr) in
         if Bits.to_bool !(o.mem_write)
         then (

@@ -51,13 +51,14 @@ Icarus Verilog with a memory of the same latency as our block RAM
 | FemtoRV32 Quark | 1-cycle read latency | 2040 | 0.279 | 3.39 |
 | PicoRV32 | zero wait (best case) | 2464 | 0.231 | 4.09 |
 | **rv32 (this repo, RV32I)** | 1-cycle read latency (BRAM) | **2562** | **0.222** | **4.25** |
-| **rv32, i9 configuration (Zicsr, dual register-file read, #4)** | 1-cycle read latency (BRAM) | **1898** | **0.299** | **3.26** |
+| rv32, Zicsr + dual register-file read (#4 step 1) | 1-cycle read latency (BRAM) | 1898 | 0.299 | 3.26 |
+| **rv32, i9 configuration (+ fetch overlap, #4 step 2)** | 1-cycle read latency (BRAM) | **1535** | **0.370** | **2.64** |
 | PicoRV32 | 1-cycle read latency | 3317 | 0.172 | 5.50 |
 
 DMIPS/MHz = 1e6 / (cycles per run x 1757), rounded here; the firmware
 itself prints it truncated to thousandths.
 
-The i9 row (2026-10-29) is not from the same binary: it is built with the
+The two rv32 rows below the baseline (2026-10-29) are not from the same binary: it is built with the
 pinned GCC 15.2 for `rv32i_zicsr` and times the loop with `mcycle`
 (29,070 instructions in the timed loop instead of about 30,100), because
 the reference cores cannot run that binary unchanged. Compare its CPI
@@ -80,7 +81,11 @@ cores with the pinned toolchain is still to do.
 - With the second register-file copy (i9 configuration) every
   instruction takes one cycle less: CPI 4.25 -> 3.26, DMIPS/MHz 0.222 ->
   0.299, for 250 more TRELLIS_COMB cells (distributed RAM).
-- On the Colorlight i9 at 25 MHz, rv32 gives 0.299 x 25 = 7.5 DMIPS.
+- Fetching the next instruction in Execute (exact next pc, no
+  prediction) saves the Fetch cycle of every instruction that does not
+  use the memory bus: CPI 3.26 -> 2.64, 0.370 DMIPS/MHz, for 186 more
+  cells (2688 -> 2874), Fmax 57 -> 54 MHz.
+- On the Colorlight i9 at 25 MHz, rv32 gives 0.370 x 25 = 9.3 DMIPS.
 
 ## Full designs (place and route)
 
