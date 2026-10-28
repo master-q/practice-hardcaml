@@ -3,7 +3,21 @@
 A dated log of the project, newest entry first. Each entry records what was
 done, what was learned, and the numbers measured that day.
 
-## 2026-10-28 (evening): first board test, no UART output (B-0014, open)
+## 2026-10-28 (night): board works; audit of all defects
+
+- The diagnostic build (80f33cd) works on the iCEstick: banner, echo and
+  upper-cased lines. designs/hello also works, so pins and port were
+  never the problem.
+- Audit (BUGS.md, "Analysis"): no functional RTL defect has escaped the
+  cheap stages; the one board-only defect is about power-up state, the
+  class two-state Cyclesim hides by construction. Two changes were made
+  at once, so the root cause of B-0014 is still to be decided by an
+  ablation on the board (EXPERIMENT=no-hold / no-regfile-init).
+- The maintainer's build log showed 1139 LCs (over budget) yet flashed:
+  `prog` now requires all S3 checks; tool versions are recorded per build
+  (B-0015).
+
+## 2026-10-28 (evening): first board test, no UART output (B-0014)
 
 - The maintainer flashed designs/mcu onto the iCEstick: no banner, no echo.
   First S4 observation of the project.

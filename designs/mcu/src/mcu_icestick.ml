@@ -38,7 +38,13 @@ module O = struct
   [@@deriving hardcaml]
 end
 
-let reset_bits = 18
+(* EXPERIMENT=no-hold (environment, at generation time) removes the 22 ms
+   hold, to reproduce B-0014 on the board; see BUGS.md. *)
+let reset_bits =
+  match Sys.getenv "EXPERIMENT" with
+  | Some "no-hold" -> 1
+  | _ -> 18
+;;
 
 let create scope (i : _ I.t) =
   let free = Reg_spec.create ~clock:i.clock () in

@@ -70,6 +70,11 @@ let zero_register_file line =
   | None -> false
 ;;
 
+(* EXPERIMENT=no-regfile-init (environment) omits it, to reproduce B-0014. *)
+let init_register_file =
+  not (Option.equal String.equal (Sys.getenv "EXPERIMENT") (Some "no-regfile-init"))
+;;
+
 let print_verilog (config : Mcu.Config.t) ~circuit ~dir ~prefix =
   let scope = Scope.create ~flatten_design:false () in
   let circuit = circuit scope in
@@ -86,7 +91,7 @@ let print_verilog (config : Mcu.Config.t) ~circuit ~dir ~prefix =
   String.split_lines (Buffer.contents buffer)
   |> List.iter ~f:(fun line ->
     print_endline line;
-    if zero_register_file line then Int.incr regfiles;
+    if init_register_file && zero_register_file line then Int.incr regfiles;
     for lane = 0 to lanes - 1 do
       let name = Mcu.ram_lane_name lane in
       let decl = Printf.sprintf "reg [7:0] %s[0:%d];" name (words - 1) in
@@ -97,7 +102,8 @@ let print_verilog (config : Mcu.Config.t) ~circuit ~dir ~prefix =
     done);
   if !inserted <> lanes
   then Printf.failwithf "expected %d RAM lane declarations, found %d" lanes !inserted ();
-  if !regfiles <> 1 then Printf.failwithf "expected 1 register file, found %d" !regfiles ()
+  if init_register_file && !regfiles <> 1
+  then Printf.failwithf "expected 1 register file, found %d" !regfiles ()
 ;;
 
 (* [circuit scope] builds the board's top-level circuit. *)

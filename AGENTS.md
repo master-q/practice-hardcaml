@@ -59,6 +59,19 @@ evidence; `docs/WORKFLOW.md` describes the method.
 - **Push directly to `main`** (maintainer, 2026-10-26). No feature branch
   or pull request is needed; run `make` (or `make ci`) before pushing so
   `main` stays green.
+- **Do not rely on implicit power-up state** (B-0014). Board top levels
+  hold the core in reset for a documented time after configuration (the
+  iCEstick: about 22 ms) before any block RAM is read. Memories whose
+  initial contents matter are initialised explicitly in the generated
+  Verilog. Registers without a reset are listed in the board testbench
+  with their silicon power-up value. `make board-sim` (four-state,
+  pin-level) must pass.
+- **Board experiments change one thing at a time**, or provide an
+  ablation switch (`EXPERIMENT=...`), so that a fix also identifies the
+  cause.
+- **Toolchain-dependent numbers** (instruction counts, LC counts, Fmax)
+  are compared only within one toolchain; `scripts/versions.sh` records
+  it (B-0013, B-0015).
 - **Keep `HISTORY.md` up to date.** Add a dated entry with the gist of each
   working session: what was done, what was learned, measured numbers.
   Newest entry first. Do not turn `README.md` into a log.

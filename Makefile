@@ -32,6 +32,9 @@ all: setup langcheck selftest test board-sim synth names
 setup:
 	@scripts/setup_clone.sh
 
+versions:
+	@scripts/versions.sh
+
 langcheck:
 	@scripts/check_ascii.sh
 
@@ -83,4 +86,4 @@ clean:
 	dune clean
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p clean; done
 
-.PHONY: board-sim mcu mcu-prog mcu-term i9 i9-prog i9-term ecpbram-check icebram-check all setup langcheck selftest test verilate synth names ci clean
+.PHONY: versions board-sim mcu mcu-prog mcu-term i9 i9-prog i9-term ecpbram-check icebram-check all setup langcheck selftest test verilate synth names ci clean

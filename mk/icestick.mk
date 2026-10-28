@@ -35,6 +35,7 @@ endif
 ifeq ($(FIRMWARE),)
 $(BUILD)/top.v: $(EXE)
 	@mkdir -p $(BUILD)
+	@$(ROOT)/scripts/versions.sh > $(BUILD)/versions.txt
 	$(EXE) > $@
 
 PNR_ASC := $(BUILD)/top.asc
@@ -45,6 +46,7 @@ else
 # re-runs just the last steps (about a second instead of a full build).
 $(BUILD)/top.v: $(EXE)
 	@mkdir -p $(BUILD)
+	@$(ROOT)/scripts/versions.sh > $(BUILD)/versions.txt
 	$(EXE) placeholder $(BUILD) > $@
 
 PNR_ASC := $(BUILD)/placeholder.asc
@@ -120,8 +122,9 @@ verilate:
 names: $(BUILD)/top.v
 	$(ROOT)/scripts/check_names.sh $<
 
-prog: $(BUILD)/top.bin
-	iceprog $<
+# Flashing requires every S3 check to pass (B-0015).
+prog: all names
+	iceprog $(BUILD)/top.bin
 
 clean:
 	rm -rf $(BUILD)

@@ -34,6 +34,7 @@ $(FW_FILE): $(SWSRCS)
 # "Program loading"), so a firmware change needs no synthesis.
 $(BUILD)/top.v: $(EXE)
 	@mkdir -p $(BUILD)
+	@$(ROOT)/scripts/versions.sh > $(BUILD)/versions.txt
 	$(EXE) placeholder $(BUILD) > $@
 
 $(BUILD)/top.json: $(BUILD)/top.v
@@ -87,11 +88,12 @@ verilate:
 names: $(BUILD)/top.v
 	$(ROOT)/scripts/check_names.sh $<
 
-prog: $(BUILD)/top.bit
-	openFPGALoader -b colorlight-i9 $<
+# Loading requires every S3 check to pass (B-0015).
+prog: all names
+	openFPGALoader -b colorlight-i9 $(BUILD)/top.bit
 
-flash: $(BUILD)/top.bit
-	openFPGALoader -b colorlight-i9 -f $<
+flash: all names
+	openFPGALoader -b colorlight-i9 -f $(BUILD)/top.bit
 
 clean:
 	rm -rf $(BUILD)

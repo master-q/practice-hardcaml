@@ -19,6 +19,37 @@ category, because they cost iterations just the same.
 | S3 | Yosys + nextpnr: resources, timing, naming (`make synth names`) | seconds |
 | S4 | iCEstick hardware (`make -C <project> prog`) | minutes, manual |
 
+## Analysis (audit of B-0001..B-0016, 2026-10-28)
+
+Root-cause categories, independent of the stage that found them:
+
+| Category | Defects | Notes |
+|----------|---------|-------|
+| Implicit assumption about silicon or tools, not written in the source | B-0004, B-0012, B-0014 | collision semantics of BRAM, Yosys cost of init style, power-up state and BRAM readiness |
+| Environment drift (different tool releases) | B-0013, B-0015 | gcc and Yosys/nextpnr differ between devcontainer and CI |
+| Testbench timing or protocol | B-0001, B-0005, B-0006, B-0010, B-0016 | the benches are as error-prone as the RTL |
+| Our own checks and scripts | B-0003, B-0007, B-0008, B-0011 | each check now has a negative test |
+| Golden model / assembler | B-0002 | |
+| Area | B-0009 | caught by the LC budget |
+| RTL function | none so far | the core, MCU and UART passed lockstep on their first run |
+
+Findings for the project's question:
+- Every RTL-level functional property was settled by the cheap stages;
+  no functional RTL defect has reached S2 or S4.
+- The only defect seen first on hardware (B-0014) is about power-up and
+  initial state. Cyclesim is two-state and starts every register and
+  memory at 0, which is exactly what hides this class. A four-state,
+  pin-level simulation of the generated Verilog (`make board-sim`) closes
+  part of the gap (uninitialised memories, registers without reset); the
+  behaviour of block RAM right after configuration remains S4-only.
+- Results that depend on the toolchain (instruction counts, LC counts)
+  must not be compared across environments; record versions.
+
+Prevention now in place: `make board-sim` in every `make`; explicit
+initial contents for memories whose contents matter; reset hold after
+configuration; flashing gated on all S3 checks; tool versions recorded;
+one change per board experiment, or an ablation switch (AGENTS.md).
+
 ## Fields
 
 - **Found at**: the stage where the defect was first observed. OCaml
@@ -38,40 +69,77 @@ category, because they cost iterations just the same.
 |----------|-------|
 | S0 | 0 |
 | S1 | 6 |
-| S2 | 0 |
+| S2 | 1 (board-sim) |
 | S3 | 6 |
-| S4 | 1 (open) |
+| S4 | 2 |
 
-By class: testbench 6, toolchain 4, model 1, inference 1, resource 1.
+By class: testbench 7, toolchain 4, model 1, inference 1, resource 1,
+reset/init 1, process/environment 1.
 No functional defect in the hardware itself has been found yet: the rv32e
 core and the MCU passed lockstep on their first run.
 
 ## Entries
 
-### B-0014 (OPEN): no UART output from the MCU on the iCEstick
+### B-0016: board-sim testbench: Verilog has no \r string escape
+
+- Date: 2026-10-28
+- Project: designs/mcu (tb_top.v)
+- Found at: S2 board-sim; Catchable at: S2 board-sim
+- Class: testbench
+- Symptom: the board simulation printed the right text but reported FAIL.
+- Cause: the expected tail was written as the string "\r\nHI\r\n> ";
+  Verilog string literals support \n but not \r, so it never matched (and
+  the first version also compared 12 bytes against an 8-byte string).
+- Fix: compare against 64'h0d0a48490d0a3e20.
+- Regression: `make board-sim` (its PASS line is required by make).
+
+### B-0015: flashing bypassed the S3 checks; LC counts differ between toolchains
+
+- Date: 2026-10-28
+- Project: mk/icestick.mk, mk/ecp5.mk
+- Found at: S4 (maintainer's build log); Catchable at: S3
+- Class: process / environment
+- Symptom: the maintainer's `make mcu-prog` reported 1139 LCs, over the
+  1130 budget, and flashed anyway. The same sources give 1119 LCs with
+  the cloud/CI toolchain.
+- Cause: `prog` depended only on the bitstream, not on `resources` and
+  `names`; and the devcontainer's Yosys/nextpnr differ from Ubuntu
+  24.04's (as its gcc does, B-0013).
+- Fix: `prog` and `flash` depend on `all names`; every build writes
+  `build/versions.txt` (`scripts/versions.sh`), CI prints the versions;
+  the iCEstick budget is 1160 to cover the observed spread.
+- Regression: the Makefile dependency.
+
+### B-0014: no UART output from the MCU on the iCEstick
 
 - Date: 2026-10-28
 - Project: designs/mcu
-- Found at: S4 (maintainer, first board test); Catchable at: unknown yet
-- Class: unknown yet
-- Symptom: after `make mcu-prog`, `make mcu-term` shows nothing; typed
-  keys are not echoed.
-- What simulation says: the same generated Verilog with the firmware in
-  the RAM boots and echoes at pin level in Icarus Verilog
-  (`make board-sim`, added for this bug), so the RTL, the firmware and the
-  RAM initialisation are correct in four-state simulation.
-- Ruled out: the register file's initial contents (both of its BRAMs are
-  all-zero in the flashed bitstream; checked in the .asc).
-- Candidates: block RAM read in the first microseconds after
-  configuration (the core started reading 15 cycles after configuration);
-  wrong tty (`/dev/ttyUSB0` vs `/dev/ttyUSB1`); UART pins; the flashing
-  step.
-- Changes for the next board test: the core is held in reset for about
-  22 ms after configuration; LEDs show a hardware heartbeat (D5), core
-  halted (D4) and firmware progress (D1 = started); the register file is
-  initialised explicitly in the Verilog.
-- Regression: `make board-sim` covers the board top and RAM
-  initialisation; the hardware cause is not identified yet.
+- Found at: S4 (maintainer, first board test)
+- Status: fixed by commit 80f33cd (board confirmed: banner, echo, upper
+  case). Root cause: one of two changes made together; the ablation below
+  decides which.
+- Symptom: after `make mcu-prog`, `make mcu-term` showed nothing and typed
+  keys were not echoed. `designs/hello` (no CPU, no RAM) worked on the
+  same board, port and pins.
+- What simulation says: the generated Verilog with the firmware in the
+  RAM boots and echoes at pin level in Icarus Verilog (`make board-sim`).
+- The two changes in 80f33cd and what each predicts:
+  - (A) Reset hold of about 22 ms after configuration (before: the core
+    fetched from block RAM 15 cycles, 1.25 us, after configuration).
+    No simulator models block RAM right after configuration, so if (A)
+    is the cause the class is reset/init and it is catchable only at S4.
+  - (B) Explicit zero initialisation of the register file (x0 is never
+    written and reads as the RAM's initial value). Without it,
+    `make board-sim` fails (four-state X), so if (B) is the cause on the
+    maintainer's toolchain the class is reset/init, catchable at S2
+    board-sim. On the cloud toolchain the register file was already zero
+    in the bitstream.
+- Ablation (on the board, one flash each):
+  `make -C designs/mcu clean && EXPERIMENT=no-hold make mcu-prog` and
+  `make -C designs/mcu clean && EXPERIMENT=no-regfile-init make mcu-prog`.
+- Class: reset/init (both candidates).
+- Regression: `make board-sim` for (B); the reset-hold rule in AGENTS.md
+  for (A).
 
 ### B-0013: MCU expect tests depended on the cross compiler's version
 
