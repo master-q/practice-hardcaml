@@ -9,10 +9,11 @@ module Sim = Cyclesim.With_interface (Rv32.Decode.I) (Rv32.Decode.O)
 
 let base = ref Isa.Rv32e
 let zicsr = ref false
+let ma = ref false
 
 (* Classes in the order of Decode.O, as the model sees them. *)
 let model_class w =
-  match Isa.decode ~zicsr:!zicsr ~base:!base w with
+  match Isa.decode ~zicsr:!zicsr ~m:!ma ~a:!ma ~zifencei:!ma ~base:!base w with
   | Lui _ -> "lui"
   | Auipc _ -> "auipc"
   | Jal _ -> "jal"
@@ -23,14 +24,18 @@ let model_class w =
   | Op_imm _ -> "op_imm"
   | Op _ -> "op"
   | Fence -> "fence"
-  | Fence_i -> "fence.i (not in this decoder)"
+  | Fence_i -> "fence_i"
   | Ecall -> "ecall"
   | Ebreak -> "ebreak"
   | Csr _ -> "csr"
   | Mret -> "mret"
   | Sret | Sfence_vma _ -> "s-mode (not in this decoder)"
   | Wfi -> "wfi"
-  | Mul_div _ | Lr _ | Sc _ | Amo _ -> "m/a (not in this decoder)"
+  | Mul_div { op = Mul | Mulh | Mulhsu | Mulhu; _ } -> "mul"
+  | Mul_div _ -> "div"
+  | Lr _ -> "lr"
+  | Sc _ -> "sc"
+  | Amo _ -> "amo"
   | Illegal _ -> "illegal"
 ;;
 
@@ -47,10 +52,13 @@ let hw_class (o : Bits.t ref Rv32.Decode.O.t) =
   | l -> "(" ^ String.concat ~sep:" " l ^ ")"
 ;;
 
-let check_decoder ?(z = false) b =
+let check_decoder ?(z = false) ?(with_ma = false) b =
   base := b;
   zicsr := z;
-  let sim = Sim.create (Rv32.Decode.create ~zicsr:z ~base:b) in
+  ma := with_ma;
+  let sim =
+    Sim.create (Rv32.Decode.create ~zicsr:z ~m:with_ma ~a:with_ma ~zifencei:with_ma ~base:b)
+  in
   let i = Cyclesim.inputs sim in
   let o = Cyclesim.outputs sim in
   let checked = ref 0 in
@@ -69,7 +77,14 @@ let check_decoder ?(z = false) b =
   let regs = [ 0; 15; 16; 31 ] in
   for opcode = 0 to 127 do
     for funct3 = 0 to 7 do
-      List.iter [ 0; 0b0100000; 0b0000001; 0b1111111 ] ~f:(fun funct7 ->
+      (* funct7 values: base, SUB/SRA, M, all ones, and every A-extension
+         funct5 (bits 31..27), with and without aq/rl. *)
+      let amo_f5 = [ 0b00001; 0b00010; 0b00011; 0b00100; 0b01000; 0b01100; 0b10000; 0b10100; 0b11000; 0b11100 ] in
+      List.iter
+        ([ 0; 0b0100000; 0b0000001; 0b1111111 ]
+         @ List.map amo_f5 ~f:(fun f -> f lsl 2)
+         @ List.map amo_f5 ~f:(fun f -> (f lsl 2) lor 3))
+        ~f:(fun funct7 ->
         List.iter regs ~f:(fun rd ->
           List.iter regs ~f:(fun rs1 ->
             List.iter regs ~f:(fun rs2 ->
@@ -90,9 +105,10 @@ let check_decoder ?(z = false) b =
     check (Random.State.bits rng lor (Random.State.int rng 4 lsl 30))
   done;
   printf
-    "%s%s: checked %d words, %d mismatches\n"
+    "%s%s%s: checked %d words, %d mismatches\n"
     (Sexp.to_string (Isa.sexp_of_base b))
     (if z then "+zicsr" else "")
+    (if with_ma then "+m+a+zifencei" else "")
     !checked
     !mismatches
 ;;
@@ -102,11 +118,13 @@ let%expect_test "decoder agrees with the model" =
   check_decoder Rv32i;
   check_decoder ~z:true Rv32e;
   check_decoder ~z:true Rv32i;
+  check_decoder ~z:true ~with_ma:true Rv32i;
   [%expect
     {|
-    Rv32e: checked 362150 words, 0 mismatches
-    Rv32i: checked 362150 words, 0 mismatches
-    Rv32e+zicsr: checked 362150 words, 0 mismatches
-    Rv32i+zicsr: checked 362150 words, 0 mismatches
+    Rv32e: checked 1672870 words, 0 mismatches
+    Rv32i: checked 1672870 words, 0 mismatches
+    Rv32e+zicsr: checked 1672870 words, 0 mismatches
+    Rv32i+zicsr: checked 1672870 words, 0 mismatches
+    Rv32i+zicsr+m+a+zifencei: checked 1672870 words, 0 mismatches
     |}]
 ;;

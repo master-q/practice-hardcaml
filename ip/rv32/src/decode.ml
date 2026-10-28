@@ -1,6 +1,7 @@
 (* Instruction classification and legality for RV32I and RV32E, with
-   optional Zicsr, MRET and WFI ([~zicsr], issue #3; without it they are
-   illegal and the outputs are constant 0). An instruction is illegal if
+   optional Zicsr, MRET and WFI ([~zicsr], issue #3), M ([~m]), A ([~a])
+   and FENCE.I ([~zifencei]) (#5); without a flag its instructions are
+   illegal and its outputs are constant 0. An instruction is illegal if
    its encoding is not in the ISA or, for RV32E, if any register field it
    uses names x16..x31. test/test_decode.ml checks this against the golden
    model's decoder on every opcode/funct combination and random words. *)
@@ -31,12 +32,25 @@ module O = struct
     ; csr_imm : 'a (* the immediate forms (funct3 bit 2) *)
     ; mret : 'a
     ; wfi : 'a
+    ; mul : 'a (* MUL, MULH, MULHSU, MULHU *)
+    ; div : 'a (* DIV, DIVU, REM, REMU *)
+    ; lr : 'a
+    ; sc : 'a
+    ; amo : 'a (* AMOSWAP/ADD/XOR/AND/OR/MIN/MAX/MINU/MAXU.W *)
+    ; fence_i : 'a
     ; illegal : 'a
     }
   [@@deriving hardcaml]
 end
 
-let create ?(zicsr = false) ~(base : Rv32_model.Isa.base) (i : _ I.t) =
+let create
+  ?(zicsr = false)
+  ?(m = false)
+  ?(a = false)
+  ?(zifencei = false)
+  ~(base : Rv32_model.Isa.base)
+  (i : _ I.t)
+  =
   let x = i.insn in
   let opcode = x.:[6, 0] in
   let funct3 = x.:[14, 12] in
@@ -75,9 +89,30 @@ let create ?(zicsr = false) ~(base : Rv32_model.Isa.base) (i : _ I.t) =
       csr, csr &: funct3.:(2), x ==:. 0x30200073, x ==:. 0x10500073)
     else gnd, gnd, gnd, gnd
   in
-  let uses_rd = lui |: auipc |: jal |: jalr |: load |: op_imm |: op |: csr in
-  let uses_rs1 = jalr |: branch |: load |: store |: op_imm |: op |: (csr &: ~:csr_imm) in
-  let uses_rs2 = branch |: store |: op in
+  let muldiv = if m then is 0b0110011 &: (funct7 ==:. 1) else gnd in
+  let mul = muldiv &: ~:(funct3.:(2)) in
+  let div = muldiv &: funct3.:(2) in
+  let lr, sc, amo =
+    if a
+    then (
+      let atomic = is 0b0101111 &: (funct3 ==:. 2) in
+      let f5 = x.:[31, 27] in
+      let f5_is l = List.map l ~f:(fun v -> f5 ==:. v) |> reduce ~f:( |: ) in
+      ( atomic &: (f5 ==:. 0b00010) &: (x.:[24, 20] ==:. 0)
+      , atomic &: (f5 ==:. 0b00011)
+      , atomic
+        &: f5_is
+             [ 0b00001; 0b00000; 0b00100; 0b01100; 0b01000; 0b10000; 0b10100; 0b11000; 0b11100 ]
+      ))
+    else gnd, gnd, gnd
+  in
+  let fence_i = if zifencei then is 0b0001111 &: (funct3 ==:. 1) else gnd in
+  let uses_rd = lui |: auipc |: jal |: jalr |: load |: op_imm |: op |: csr |: muldiv |: lr |: sc |: amo in
+  let uses_rs1 =
+    jalr |: branch |: load |: store |: op_imm |: op |: (csr &: ~:csr_imm) |: muldiv |: lr |: sc
+    |: amo
+  in
+  let uses_rs2 = branch |: store |: op |: muldiv |: sc |: amo in
   let bad_reg =
     match base with
     | Rv32i -> gnd
@@ -85,7 +120,7 @@ let create ?(zicsr = false) ~(base : Rv32_model.Isa.base) (i : _ I.t) =
   in
   let known =
     lui |: auipc |: jal |: jalr |: branch |: load |: store |: op_imm |: op |: fence
-    |: ecall |: ebreak |: csr |: mret |: wfi
+    |: ecall |: ebreak |: csr |: mret |: wfi |: muldiv |: lr |: sc |: amo |: fence_i
   in
   { O.lui
   ; auipc
@@ -104,6 +139,12 @@ let create ?(zicsr = false) ~(base : Rv32_model.Isa.base) (i : _ I.t) =
   ; csr_imm
   ; mret
   ; wfi
+  ; mul
+  ; div
+  ; lr
+  ; sc
+  ; amo
+  ; fence_i
   ; illegal = ~:known |: bad_reg
   }
 ;;
