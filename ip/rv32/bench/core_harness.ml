@@ -14,11 +14,11 @@ type result =
   }
 [@@deriving sexp_of]
 
-let create_sim ?zicsr ?dual_read ?fetch_overlap ~base () =
+let create_sim ?zicsr ?dual_read ?fetch_overlap ?m ?a ~base () =
   let scope = Scope.create ~flatten_design:true () in
   Sim.create
     ~config:Cyclesim.Config.trace_all
-    (Rv32.Core.create ?zicsr ?dual_read ?fetch_overlap ~base scope)
+    (Rv32.Core.create ?zicsr ?dual_read ?fetch_overlap ?m ?a ?zifencei:(Option.map m ~f:Fn.id) ~base scope)
 ;;
 
 (* [model_program] (default: [program]) exists to test the checker itself.
@@ -29,6 +29,9 @@ let run
   ?(zicsr = false)
   ?dual_read
   ?fetch_overlap
+  ?(m = false)
+  ?(a = false)
+  ?(mem_base = 0)
   ?(irq = fun (_ : int) -> 0)
   ?checker_irq
   ?(base = Rv32_model.Isa.Rv32e)
@@ -38,9 +41,9 @@ let run
   ?model_program
   program
   =
-  let sim = match sim with Some s -> s | None -> create_sim ~zicsr ?dual_read ?fetch_overlap ~base () in
+  let sim = match sim with Some s -> s | None -> create_sim ~zicsr ?dual_read ?fetch_overlap ~m ~a ~base () in
   let lockstep =
-    Lockstep.create ~zicsr ~base ~mem_bytes ~program:(Option.value model_program ~default:program) ()
+    Lockstep.create ~zicsr ~m ~a ~mem_base ~base ~mem_bytes ~program:(Option.value model_program ~default:program) ()
   in
   let mem = Bytes.make mem_bytes '\000' in
   List.iteri program ~f:(fun k w ->

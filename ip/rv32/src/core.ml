@@ -14,6 +14,16 @@
    output marks the cycle where the interrupt decision for the next
    boundary is made: Fetch, or the overlapping Execute.
 
+   M and A ([~m], [~a]; #5, the Linux SoC): multiplication takes one extra
+   cycle (Mul: the 33 x 33 product is registered at the end of Execute);
+   division and remainder are restoring, one bit per cycle (Div, 32
+   cycles); LR.W is a load that sets the reservation; SC.W writes in
+   Execute if the reservation holds for its address (rd = 0) and
+   otherwise only sets rd = 1; every SC.W and every trap or interrupt
+   entry clears the reservation, as in Rv32_model.Machine. AMOs read in
+   Execute and write in Amo. FENCE.I ([~zifencei]) is a no-op (no
+   caches).
+
    Memory bus: [mem_addr] with [mem_read] or [mem_write] is valid for one
    cycle; read data must be on [mem_rdata] in the next cycle. Writes carry a
    byte-lane mask and lane-aligned data.
@@ -100,11 +110,21 @@ module State = struct
     | Execute
     | Shift
     | Load
+    | Mul
+    | Div
+    | Amo
     | Halted
   [@@deriving sexp_of, compare ~localize, enumerate]
 end
 
-let create ?(zicsr = false) ?(dual_read = false) ?(fetch_overlap = false) ~(base : Rv32_model.Isa.base) scope (i : _ I.t) =
+let create
+  ?(zicsr = false)
+  ?(dual_read = false)
+  ?(fetch_overlap = false)
+  ?m:(ext_m = false)
+  ?a:(ext_a = false)
+  ?(zifencei = false)
+  ~(base : Rv32_model.Isa.base) scope (i : _ I.t) =
   let reg_bits = Int.ceil_log2 (Rv32_model.Isa.num_regs base) in
   let spec = Reg_spec.create ~clock:i.clock ~clear:i.clear () in
   let sm = Always.State_machine.create (module State) spec in
@@ -157,7 +177,10 @@ let create ?(zicsr = false) ?(dual_read = false) ?(fetch_overlap = false) ~(base
       let%hw rf_rdata = regfile ~name:"regfile" rf_raddr in
       rs1_value.value, rf_rdata)
   in
-  let dec = Decode.create ~zicsr ~base { Decode.I.insn = ir } |> Decode.O.Of_signal.apply_names ~prefix:"dec_" in
+  let dec =
+    Decode.create ~zicsr ~m:ext_m ~a:ext_a ~zifencei ~base { Decode.I.insn = ir }
+    |> Decode.O.Of_signal.apply_names ~prefix:"dec_"
+  in
   let%hw imm = (Imm.create { Imm.I.insn = ir }).imm in
   let%hw alu_b = mux2 (dec.op |: dec.branch) b imm in
   let alu =
@@ -166,7 +189,10 @@ let create ?(zicsr = false) ?(dual_read = false) ?(fetch_overlap = false) ~(base
   in
   (* One adder for every address: pc-relative (JAL, branches, AUIPC) or
      register-relative (JALR, loads, stores). *)
-  let%hw agu = mux2 (dec.jalr |: dec.load |: dec.store) a pc.value +: imm in
+  let%hw atomic = dec.lr |: dec.sc |: dec.amo in
+  let%hw mem_op = dec.load |: dec.store |: atomic in
+  (* Atomics address rs1 itself (no immediate). *)
+  let%hw agu = mux2 (dec.jalr |: mem_op) a pc.value +: mux2 atomic (zero 32) imm in
   let%hw pc_plus4 = pc.value +:. 4 in
   let%hw jump_target =
     mux2 dec.jalr (agu.:[31, 1] @: gnd) agu
@@ -295,12 +321,62 @@ let create ?(zicsr = false) ?(dual_read = false) ?(fetch_overlap = false) ~(base
   let%hw_var overlapping = Always.Variable.wire ~default:gnd in
   let%hw overlap_ok =
     if fetch_overlap
-    then ~:(dec.store |: dec.load |: dec.csr |: dec.mret |: irq_due)
+    then ~:(mem_op |: dec.csr |: dec.mret |: irq_due |: dec.mul |: dec.div)
     else gnd
+  in
+  (* M: the product (registered) and the divider. *)
+  let%hw_var mul_result = Always.Variable.reg ~width:32 spec in
+  let%hw_var div_quot = Always.Variable.reg ~width:32 spec in
+  let%hw_var div_rem = Always.Variable.reg ~width:32 spec in
+  let%hw_var div_count = Always.Variable.reg ~width:6 spec in
+  let%hw_var div_neg_q = Always.Variable.reg ~width:1 spec in
+  let%hw_var div_neg_r = Always.Variable.reg ~width:1 spec in
+  let%hw product =
+    if ext_m
+    then (
+      let a_signed = funct3 ==:. 1 |: (funct3 ==:. 2) in
+      let b_signed = funct3 ==:. 1 in
+      let ext s x = mux2 s (msb x) gnd @: x in
+      let p = ext a_signed a *+ ext b_signed b in
+      mux2 (funct3 ==:. 0) p.:[31, 0] p.:[63, 32])
+    else zero 32
+  in
+  let div_signed = ~:(funct3.:(0)) in
+  let abs_if neg x = mux2 neg (negate x) x in
+  (* 33 bits: twice a remainder below an unsigned divisor up to 2^32 - 1. *)
+  let%hw div_divisor = abs_if (div_signed &: msb b) b in
+  let%hw div_step_rem = div_rem.value @: div_quot.value.:(31) in
+  let%hw div_step_sub = (gnd @: div_step_rem) -: (zero 2 @: div_divisor) in
+  (* A: the reservation and the AMO result. *)
+  let%hw_var reservation_valid = Always.Variable.reg ~width:1 spec in
+  let%hw_var reservation_addr = Always.Variable.reg ~width:32 spec in
+  let%hw sc_ok = reservation_valid.value &: (reservation_addr.value ==: agu) in
+  let%hw amo_new =
+    if ext_a
+    then (
+      let old = i.mem_rdata in
+      let lt_s = old <+ b
+      and lt_u = old <: b in
+      mux
+        ir.:[31, 27]
+        (List.init 32 ~f:(fun f5 ->
+           match f5 with
+           | 0b00001 -> b
+           | 0b00000 -> old +: b
+           | 0b00100 -> old ^: b
+           | 0b01100 -> old &: b
+           | 0b01000 -> old |: b
+           | 0b10000 -> mux2 lt_s old b
+           | 0b10100 -> mux2 lt_s b old
+           | 0b11000 -> mux2 lt_u old b
+           | 0b11100 -> mux2 lt_u b old
+           | _ -> b)))
+    else zero 32
   in
   let enter_trap ~cause ~tval =
     Always.
-      [ retire <-- vdd
+      [ reservation_valid <-- gnd
+      ; retire <-- vdd
       ; retire_trap <-- vdd
       ; retire_cause <-- cause
       ; retire_next_pc <-- mtvec.value
@@ -370,7 +446,7 @@ let create ?(zicsr = false) ?(dual_read = false) ?(fetch_overlap = false) ~(base
           ; ( Execute
             , [ writes_rd
                 <-- (dec.lui |: dec.auipc |: dec.jal |: dec.jalr |: dec.load |: dec.op_imm
-                     |: dec.op |: dec.csr)
+                     |: dec.op |: dec.csr |: dec.mul |: dec.div |: atomic)
               ; if_
                   (dec.illegal |: csr_illegal)
                   (halt ~cause:2 ~tval:ir Trap.illegal)
@@ -384,16 +460,21 @@ let create ?(zicsr = false) ?(dual_read = false) ?(fetch_overlap = false) ~(base
                               (taken &: next_pc.:(1))
                               (halt ~cause:0 ~tval:next_pc Trap.misaligned_fetch)
                               [ if_
-                                  ((dec.load |: dec.store) &: misaligned_mem)
+                                  (mem_op &: misaligned_mem)
                                   [ if_
-                                      dec.store
+                                      (dec.store |: dec.sc |: dec.amo)
                                       (halt ~cause:6 ~tval:agu Trap.misaligned_access)
                                       (halt ~cause:4 ~tval:agu Trap.misaligned_access)
                                   ]
                                   [ if_
-                                      dec.load
+                                      (dec.load |: dec.lr)
                                       [ mem_read <-- vdd
                                       ; load_offset <-- lane
+                                      ; when_
+                                          dec.lr
+                                          [ reservation_valid <-- vdd
+                                          ; reservation_addr <-- agu
+                                          ]
                                       ; sm.set_next Load
                                       ]
                                       [ if_
@@ -403,7 +484,8 @@ let create ?(zicsr = false) ?(dual_read = false) ?(fetch_overlap = false) ~(base
                                             <-- (mux2 dec.op b imm).:[4, 0]
                                           ; sm.set_next Shift
                                           ]
-                                          [ when_ dec.store [ mem_write <-- vdd ]
+                                          [ when_ (dec.store |: (dec.sc &: sc_ok)) [ mem_write <-- vdd ]
+                                          ; when_ dec.sc [ reservation_valid <-- gnd ]
                                           ; when_
                                               dec.mret
                                               [ mstatus_mie <-- mstatus_mpie.value
@@ -412,7 +494,11 @@ let create ?(zicsr = false) ?(dual_read = false) ?(fetch_overlap = false) ~(base
                                           ; when_ (dec.csr &: csr_writes) (csr_write ())
                                           ; proc
                                               (complete
-                                                 ~result:(mux2 dec.csr csr_old exec_result)
+                                                 ~result:
+                                                   (mux2
+                                                      dec.csr
+                                                      csr_old
+                                                      (mux2 dec.sc (uresize ~:sc_ok 32) exec_result))
                                                  ~next:(mux2 dec.mret mepc.value next_pc))
                                           ; when_
                                               overlap_ok
@@ -420,6 +506,30 @@ let create ?(zicsr = false) ?(dual_read = false) ?(fetch_overlap = false) ~(base
                                               ; overlapping <-- vdd
                                               ; sm.set_next Decode
                                               ]
+                                          ; (* Multi-cycle M/A instructions do not
+                                               complete here: undo the completion
+                                               and go to their state. *)
+                                            when_
+                                              (dec.mul |: dec.div |: dec.amo)
+                                              [ retire <-- gnd
+                                              ; rf_we <-- gnd
+                                              ; pc <-- pc.value
+                                              ; sm.set_next Fetch
+                                              ]
+                                          ; when_
+                                              dec.mul
+                                              [ mul_result <-- product; sm.set_next Mul ]
+                                          ; when_
+                                              dec.div
+                                              [ div_quot <-- abs_if (div_signed &: msb a) a
+                                              ; div_rem <--. 0
+                                              ; div_count <--. 32
+                                              ; div_neg_q
+                                                <-- (div_signed &: (msb a ^: msb b) &: (b <>:. 0))
+                                              ; div_neg_r <-- (div_signed &: msb a)
+                                              ; sm.set_next Div
+                                              ]
+                                          ; when_ dec.amo [ mem_read <-- vdd; sm.set_next Amo ]
                                           ]
                                       ]
                                   ]
@@ -441,6 +551,35 @@ let create ?(zicsr = false) ?(dual_read = false) ?(fetch_overlap = false) ~(base
             , [ writes_rd <-- vdd
               ; proc (complete ~result:loaded ~next:pc_plus4)
               ] )
+          ; ( Mul
+            , [ writes_rd <-- vdd; proc (complete ~result:mul_result.value ~next:pc_plus4) ] )
+          ; ( Div
+            , [ writes_rd <-- vdd
+              ; if_
+                  (div_count.value ==:. 0)
+                  (complete
+                     ~result:
+                       (mux2
+                          funct3.:(1)
+                          (abs_if div_neg_r.value div_rem.value)
+                          (abs_if div_neg_q.value div_quot.value))
+                     ~next:pc_plus4)
+                  [ div_count <-- div_count.value -:. 1
+                  ; if_
+                      (msb div_step_sub)
+                      [ div_rem <-- div_step_rem.:[31, 0]
+                      ; div_quot <-- div_quot.value.:[30, 0] @: gnd
+                      ]
+                      [ div_rem <-- div_step_sub.:[31, 0]
+                      ; div_quot <-- div_quot.value.:[30, 0] @: vdd
+                      ]
+                  ]
+              ] )
+          ; ( Amo
+            , [ writes_rd <-- vdd
+              ; mem_write <-- vdd
+              ; proc (complete ~result:i.mem_rdata ~next:pc_plus4)
+              ] )
           ; Halted, []
           ]
       ]);
@@ -448,12 +587,12 @@ let create ?(zicsr = false) ?(dual_read = false) ?(fetch_overlap = false) ~(base
     mux2
       (sm.is Fetch)
       pc.value
-      (if fetch_overlap then mux2 (dec.load |: dec.store) agu next_pc else agu)
+      (if fetch_overlap then mux2 mem_op agu next_pc else agu)
   in
   { O.mem_addr
   ; mem_read = mem_read.value
   ; mem_write = mem_write.value
-  ; mem_wdata = store_data
+  ; mem_wdata = mux2 (sm.is Amo) amo_new store_data
   ; mem_wmask = store_mask
   ; halted = sm.is Halted
   ; trap = trap.value
@@ -466,7 +605,7 @@ let create ?(zicsr = false) ?(dual_read = false) ?(fetch_overlap = false) ~(base
   ; retire_mem_we = mem_write.value
   ; retire_mem_addr = agu
   ; retire_mem_size = size
-  ; retire_mem_value = b
+  ; retire_mem_value = mux2 (sm.is Amo) amo_new b
   ; retire_next_pc = retire_next_pc.value
   ; retire_trap = retire_trap.value
   ; retire_cause = retire_cause.value
@@ -476,7 +615,10 @@ let create ?(zicsr = false) ?(dual_read = false) ?(fetch_overlap = false) ~(base
   }
 ;;
 
-let hierarchical ?zicsr ?dual_read ?fetch_overlap ~base scope =
+let hierarchical ?zicsr ?dual_read ?fetch_overlap ?m ?a ?zifencei ~base scope =
   let module H = Hierarchy.In_scope (I) (O) in
-  H.hierarchical ~scope ~name:"rv32_core" (create ?zicsr ?dual_read ?fetch_overlap ~base)
+  H.hierarchical
+    ~scope
+    ~name:"rv32_core"
+    (create ?zicsr ?dual_read ?fetch_overlap ?m ?a ?zifencei ~base)
 ;;

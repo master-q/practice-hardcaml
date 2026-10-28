@@ -36,7 +36,17 @@ let csr_input t csr =
   | _ -> 0
 ;;
 
-let create ?(is_io = fun _ -> false) ?(zicsr = false) ~base ~mem_bytes ~program () =
+let create
+  ?(is_io = fun _ -> false)
+  ?(zicsr = false)
+  ?(m = false)
+  ?(a = false)
+  ?(mem_base = 0)
+  ~base
+  ~mem_bytes
+  ~program
+  ()
+  =
   let rec t =
     lazy
       { model =
@@ -47,6 +57,10 @@ let create ?(is_io = fun _ -> false) ?(zicsr = false) ~base ~mem_bytes ~program 
               ; store = (fun ~addr:_ ~bytes:_ ~value:_ -> ())
               }
             ~zicsr
+            ~m
+            ~a
+            ~zifencei:(m || a)
+            ~mem_base
             ~csr_input:(fun csr -> csr_input (force t) csr)
             ~base
             ~mem_bytes

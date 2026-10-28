@@ -15,11 +15,11 @@ build: fetch
 
 RUN := $(ROOT)/_build/default/bench/arch_test/run.exe
 
-# RV32I on the core; M on the golden model alone until the core has it
-# (#5, plan in #21).
+# RV32I on the plain core and the i9 configurations; M on the golden model
+# and on the i9 core with M and A (#5).
 run: build selftest
 	$(RUN) build/tests
-	$(RUN) --model-m build/tests_m
+	$(RUN) --m build/tests_m
 
 # The runner must fail on a wrong signature word.
 selftest: build

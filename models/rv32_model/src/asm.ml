@@ -122,6 +122,31 @@ let srl = op 0b101
 let sra = op ~funct7:0b0100000 0b101
 let or_ = op 0b110
 let and_ = op 0b111
+(* M extension *)
+let mul = op ~funct7:1 0b000
+let mulh = op ~funct7:1 0b001
+let mulhsu = op ~funct7:1 0b010
+let mulhu = op ~funct7:1 0b011
+let div = op ~funct7:1 0b100
+let divu = op ~funct7:1 0b101
+let rem = op ~funct7:1 0b110
+let remu = op ~funct7:1 0b111
+
+(* A extension (.W, aq = rl = 0); address in rs1. *)
+let atomic funct5 rd rs1 rs2 = r_type ~funct7:(funct5 lsl 2) ~funct3:0b010 ~opcode:0b0101111 rd rs1 rs2
+let lr_w rd rs1 = atomic 0b00010 rd rs1 0
+let sc_w rd rs1 rs2 = atomic 0b00011 rd rs1 rs2
+let amoswap_w = atomic 0b00001
+let amoadd_w = atomic 0b00000
+let amoxor_w = atomic 0b00100
+let amoand_w = atomic 0b01100
+let amoor_w = atomic 0b01000
+let amomin_w = atomic 0b10000
+let amomax_w = atomic 0b10100
+let amominu_w = atomic 0b11000
+let amomaxu_w = atomic 0b11100
+let fence_i = 0x0000100f
+
 let ecall = 0x00000073
 let ebreak = 0x00100073
 let nop = addi 0 0 0

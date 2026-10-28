@@ -6,8 +6,8 @@
    dual register-file read, fetch overlap).
 
      run.exe DIR            the core (plain RV32I and the i9 configuration)
-     run.exe --model-m DIR  the golden model alone with the M extension
-                            (the core gets M in #5; issue #25) *)
+     run.exe --m DIR        M group: the golden model alone, and the i9
+                            core with M and A in lockstep (#5) *)
 open! Base
 open Stdio
 
@@ -23,11 +23,12 @@ let words_of_file path =
 ;;
 
 type target =
-  | Core of { zicsr : bool; fast : bool }
+  | Core of { zicsr : bool; fast : bool; ma : bool }
   | Model_m
 
 let target_name = function
   | Core { zicsr = false; _ } -> "rv32i"
+  | Core { ma = true; _ } -> "i9+ma"
   | Core _ -> "i9"
   | Model_m -> "model"
 ;;
@@ -63,12 +64,14 @@ let run_test ~target dir name =
   let retired, trap, mismatch, memory =
     match target with
     | Model_m -> run_model program
-    | Core { zicsr; fast } ->
+    | Core { zicsr; fast; ma } ->
       let r =
         Rv32_bench.Core_harness.run
           ~zicsr
           ~dual_read:fast
           ~fetch_overlap:fast
+          ~m:ma
+          ~a:ma
           ~base:Rv32i
           ~mem_bytes
           ~max_cycles:20_000_000
@@ -110,10 +113,15 @@ let run_test ~target dir name =
 let () =
   let targets, dir =
     match Sys.get_argv () with
-    | [| _; "--model-m"; dir |] -> [ Model_m ], dir
-    | [| _; dir |] -> [ Core { zicsr = false; fast = false }; Core { zicsr = true; fast = true } ], dir
+    | [| _; "--m"; dir |] -> [ Model_m; Core { zicsr = true; fast = true; ma = true } ], dir
+    | [| _; dir |] ->
+      ( [ Core { zicsr = false; fast = false; ma = false }
+        ; Core { zicsr = true; fast = true; ma = false }
+        ; Core { zicsr = true; fast = true; ma = true }
+        ]
+      , dir )
     | _ ->
-      eprintf "usage: run.exe [--model-m] DIR\n";
+      eprintf "usage: run.exe [--m] DIR\n";
       Stdlib.exit 2
   in
   let names =

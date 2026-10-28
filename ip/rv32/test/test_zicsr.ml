@@ -178,7 +178,7 @@ let%expect_test "lockstep catches interrupt mistakes" =
    accesses (mscratch, mie, the MIE bit, counters, mip) and randomly timed
    interrupts of all three kinds. The handler returns from interrupts and
    stops on the final EBREAK. *)
-let random_program rng ~nregs ~length =
+let random_program ?(ma = false) rng ~nregs ~length =
   let top = nregs - 1 in
   let reg () = 1 + Random.State.int rng (top - 2) in
   let any_reg () = Random.State.int rng top in
@@ -196,7 +196,7 @@ let random_program rng ~nregs ~length =
     List.init length ~f:(fun k ->
       let remaining = length - k in
       let skip () = 4 * (1 + Random.State.int rng (Int.min 3 remaining)) in
-      match Random.State.int rng 16 with
+      match Random.State.int rng (if ma then 26 else 16) with
       | 0 -> A.add (reg ()) (any_reg ()) (any_reg ())
       | 1 -> A.sub (reg ()) (any_reg ()) (any_reg ())
       | 2 -> A.xor (reg ()) (any_reg ()) (any_reg ())
@@ -214,7 +214,28 @@ let random_program rng ~nregs ~length =
       | 12 -> if Random.State.bool rng then A.csrrsi 0 C.mstatus 8 else A.csrrci 0 C.mstatus 8
       | 13 -> A.csrr (reg ()) [| C.mcycle; C.minstret; C.cycle; 0xb80 |].(Random.State.int rng 4)
       | 14 -> A.csrr (reg ()) C.mip
-      | _ -> A.jal (reg ()) (skip ()))
+      | 15 -> A.jal (reg ()) (skip ())
+      (* M and A ([ma]); atomics address the data region at x[top]. *)
+      | 16 ->
+        [| A.mul; A.mulh; A.mulhsu; A.mulhu |].(Random.State.int rng 4)
+          (reg ())
+          (any_reg ())
+          (any_reg ())
+      | 17 | 18 ->
+        [| A.div; A.divu; A.rem; A.remu |].(Random.State.int rng 4)
+          (reg ())
+          (any_reg ())
+          (any_reg ())
+      | 19 -> A.div (reg ()) (any_reg ()) 0 (* division by zero *)
+      | 20 | 21 -> A.lr_w (reg ()) top
+      | 22 | 23 -> A.sc_w (reg ()) top (any_reg ())
+      | _ ->
+        [| A.amoswap_w; A.amoadd_w; A.amoxor_w; A.amoand_w; A.amoor_w; A.amomin_w; A.amomax_w
+         ; A.amominu_w; A.amomaxu_w
+        |].(Random.State.int rng 9)
+          (reg ())
+          top
+          (any_reg ()))
   in
   let handler =
     [ A.csrr (top - 1) C.mcause
@@ -238,7 +259,7 @@ let random_irqs rng =
   pulses (go (Random.State.int rng 100) [])
 ;;
 
-let random_programs ?dual_read ?fetch_overlap ~base () =
+let random_programs ?dual_read ?fetch_overlap ?(ma = false) ~base () =
   let nregs = Rv32_model.Isa.num_regs base in
   let rng = Random.State.make [| 3 |] in
   let programs = 300 in
@@ -246,8 +267,10 @@ let random_programs ?dual_read ?fetch_overlap ~base () =
   let failures = ref 0 in
   let interrupts = ref 0 in
   for n = 1 to programs do
-    let program = random_program rng ~nregs ~length:80 in
-    let r = H.run ~zicsr:true ?dual_read ?fetch_overlap ~irq:(random_irqs rng) ~base program in
+    let program = random_program ~ma rng ~nregs ~length:80 in
+    let r =
+      H.run ~zicsr:true ?dual_read ?fetch_overlap ~m:ma ~a:ma ~irq:(random_irqs rng) ~base program
+    in
     retired := !retired + r.retired;
     interrupts := !interrupts + r.interrupts;
     match r.mismatch, r.trap with
@@ -276,10 +299,12 @@ let%expect_test "random programs with CSRs and interrupts" =
   random_programs ~base:Rv32i ();
   random_programs ~dual_read:true ~base:Rv32i ();
   random_programs ~dual_read:true ~fetch_overlap:true ~base:Rv32i ();
+  random_programs ~dual_read:true ~fetch_overlap:true ~ma:true ~base:Rv32i ();
   [%expect {|
     Rv32e: 300 programs, 37701 instructions, 1014 interrupts, 0 failures
     Rv32i: 300 programs, 49918 instructions, 1682 interrupts, 0 failures
     Rv32i: 300 programs, 49569 instructions, 1594 interrupts, 0 failures
     Rv32i: 300 programs, 48529 instructions, 1335 interrupts, 0 failures
+    Rv32i: 300 programs, 50458 instructions, 1628 interrupts, 0 failures
     |}]
 ;;
