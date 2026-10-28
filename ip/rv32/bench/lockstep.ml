@@ -71,7 +71,7 @@ let trap_code : Machine.trap -> int = function
   | Illegal_instruction _ -> Rv32.Core.Trap.illegal
   | Misaligned_fetch _ -> Rv32.Core.Trap.misaligned_fetch
   | Misaligned_access _ -> Rv32.Core.Trap.misaligned_access
-  | Access_fault _ -> -1
+  | Access_fault _ | Page_fault _ -> -1
 ;;
 
 (* The core's retire outputs, in the model's terms. *)

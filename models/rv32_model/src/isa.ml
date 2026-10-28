@@ -97,6 +97,8 @@ type t =
   | Ebreak
   | Csr of { op : csr_op; rd : reg; src : csr_src; csr : int } (* Zicsr *)
   | Mret
+  | Sret (* S-mode ([s]) *)
+  | Sfence_vma of { rs1 : reg; rs2 : reg }
   | Wfi
   | Mul_div of { op : mul_op; rd : reg; rs1 : reg; rs2 : reg } (* M *)
   | Lr of { rd : reg; rs1 : reg } (* A; aq/rl are ignored (one hart) *)
@@ -137,7 +139,16 @@ let imm_j w =
 
 (* [zicsr]: decode the CSR instructions, MRET and WFI (otherwise illegal).
    Whether a CSR address exists is decided by the machine, not here. *)
-let decode ?(zicsr = false) ?(m = false) ?(a = false) ?(zifencei = false) ~base word =
+(* [s]: supervisor mode instructions (SRET, SFENCE.VMA); needs [zicsr]. *)
+let decode
+  ?(zicsr = false)
+  ?(m = false)
+  ?(a = false)
+  ?(zifencei = false)
+  ?(s = false)
+  ~base
+  word
+  =
   let illegal = Illegal word in
   let opcode = bits word ~hi:6 ~lo:0 in
   let rd = bits word ~hi:11 ~lo:7 in
@@ -248,6 +259,9 @@ let decode ?(zicsr = false) ?(m = false) ?(a = false) ?(zifencei = false) ~base 
     | 0b1110011 when word = 0x00100073 -> Ebreak, []
     | 0b1110011 when zicsr && word = 0x30200073 -> Mret, []
     | 0b1110011 when zicsr && word = 0x10500073 -> Wfi, []
+    | 0b1110011 when s && word = 0x10200073 -> Sret, []
+    | 0b1110011 when s && funct7 = 0b0001001 && rd = 0 && funct3 = 0 ->
+      Sfence_vma { rs1; rs2 }, [ rs1; rs2 ]
     | 0b1110011 when zicsr && funct3 <> 0 && funct3 <> 4 ->
       let csr = bits word ~hi:31 ~lo:20 in
       let op = match funct3 land 3 with 1 -> Csrrw | 2 -> Csrrs | _ -> Csrrc in

@@ -28,6 +28,7 @@ let model_class w =
   | Ebreak -> "ebreak"
   | Csr _ -> "csr"
   | Mret -> "mret"
+  | Sret | Sfence_vma _ -> "s-mode (not in this decoder)"
   | Wfi -> "wfi"
   | Mul_div _ | Lr _ | Sc _ | Amo _ -> "m/a (not in this decoder)"
   | Illegal _ -> "illegal"
