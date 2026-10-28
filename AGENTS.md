@@ -30,7 +30,17 @@ evidence; `docs/WORKFLOW.md` describes the method.
 - **Test cheapest first.** Every design module gets a Cyclesim expect test in
   its project's `test/` directory before it goes to the board. Testbenches
   live in a library that takes a `Cyclesim.t`, so the same bench also runs on
-  Verilator (see `uart/bench`).
+  Verilator (see `designs/mcu/bench`).
+- **Prove what can be proved.** When a block has an area-optimised
+  implementation, keep a straightforward `reference` next to it and prove
+  them equivalent with `Hardcaml_verify.Sec` (see `ip/rv32e/test/test_formal.ml`).
+  Every checker (formal, lockstep, naming) also gets a negative test showing
+  it can fail.
+- **Memories must land in block RAM.** Build RAMs with `Ram.create`
+  (registered read port) and the `no_rw_check` attribute, never read and
+  write the same RAM in the same cycle when the read data is used, and set
+  `EXPECT_BRAM` in the project Makefile; `make` fails if nextpnr places a
+  different number of SB_RAM40_4K blocks.
 - **Every defect is recorded in `BUGS.md`, at every stage, S0 and S1
   included.** This covers failures you hit and fix yourself while developing,
   before anything is committed: a failing expect test, a width error from
@@ -49,27 +59,37 @@ evidence; `docs/WORKFLOW.md` describes the method.
 
 ## Layout
 
+Follows the usual HDL split between reusable IP and chip/board top levels
+(as in OpenTitan's `hw/ip` and `hw/top_*`).
+
 | Path | What |
 |------|------|
-| `blink/` | LED blinker, the smallest end-to-end example |
-| `uart/` | 8N1 UART transmitter and a "hello" top level; shared bench + Verilator stage |
-| `rv32_model/` | RV32E instruction-set golden model (OCaml) and a tiny assembler |
+| `ip/uart/` | 8N1 UART transmitter and receiver; bench with line driver and monitors |
+| `ip/rv32e/` | RV32E core: ALU, immediate generator, decoder, multi-cycle core; lockstep bench |
+| `designs/blink/` | LED blinker, the smallest end-to-end example |
+| `designs/hello/` | Prints "Hello, iCEstick!" over the UART |
+| `designs/mcu/` | RV32E microcontroller: core + 4 KiB BRAM + UART + LEDs, runs C firmware |
+| `models/rv32_model/` | RV32E golden model (OCaml), MMIO hooks, tiny assembler |
+| `sw/` | Firmware for `designs/mcu` (crt0, linker script, `mcu.h`, programs) |
+| `testlib/` | Test helpers: ASCII waveforms, shared Verilator config |
 | `mk/icestick.mk` | Shared HardCaml -> Yosys -> nextpnr -> icepack rules |
-| `scripts/` | Policy checks (`check_ascii.sh`, `check_names.sh`) and setup |
+| `scripts/` | Policy and S3 checks (`check_ascii.sh`, `check_names.sh`, `check_resources.sh`) |
 | `docs/WORKFLOW.md` | HDL landscape, AI-assisted workflows, and the workflow we adopt |
 
-A board project has `src/` (library), `bin/main.ml` (prints Verilog for
-module `top`), `test/` (Cyclesim expect tests), optionally `bench/` and
-`verilator/`, an `icestick.pcf`, and a two-line `Makefile` including
-`../mk/icestick.mk`. Add new board projects to `BOARD_PROJECTS` in the root
+An IP block (`ip/<name>/`) has `src/` (library), `test/` (S0/S1 tests) and
+usually `bench/` (testbenches taking a `Cyclesim.t`). A board design
+(`designs/<name>/`) adds `bin/main.ml` (prints Verilog for module `top`),
+optionally `verilator/` (S2), an `icestick.pcf`, and a short `Makefile`
+setting `PROJECT`, `EXPECT_BRAM` and optionally `FIRMWARE` before including
+`../../mk/icestick.mk`. Add new designs to `BOARD_PROJECTS` in the root
 `Makefile` and to the table in `README.md`.
 
 ## Commands
 
-    make              # per-commit gate: langcheck, dune test, synth, names
-    make ci           # also runs the Verilator stage
-    make -C uart      # build uart/build/top.bin
-    make -C uart prog # flash it (needs a board on USB)
+    make                     # per-commit gate: langcheck, S0/S1, synth + S3 checks
+    make ci                  # also runs the Verilator stage (S2)
+    make -C designs/mcu      # build designs/mcu/build/top.bin with sw/echo.bin inside
+    make -C designs/mcu prog # flash it (needs a board on USB)
 
 ## Environment
 
@@ -80,5 +100,11 @@ sync whenever a tool or opam package is added.
 Toolchain notes:
 - HardCaml v0.17: `select s hi lo` takes positional arguments; wires are
   assigned with `<==`; Always variables with `<--`.
+- HardCaml v0.17: `repeat s n`, `srl s n` are positional; memories have no
+  initial contents (the mcu generator inserts `initial` blocks).
 - hardcaml_verilator v0.17.0 needs `verilator_version = V5` and
-  `verbose = true` (see the comment in `uart/verilator/main.ml`).
+  `verbose = true`; use `Testlib.Verilator_config.config`.
+- hardcaml_waveterm draws Unicode boxes; print waveforms with
+  `Testlib.Ascii_wave.print` to stay ASCII.
+- `Hardcaml_verify.Sec` calls the `z3` binary.
+- Firmware: `riscv64-unknown-elf-gcc -march=rv32e -mabi=ilp32e`, see `sw/dune`.

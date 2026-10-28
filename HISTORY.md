@@ -3,6 +3,38 @@
 A dated log of the project, newest entry first. Each entry records what was
 done, what was learned, and the numbers measured that day.
 
+## 2026-10-28: RV32E MCU running C over UART (simulation and synthesis)
+
+- Layout: reusable blocks in `ip/`, board top levels in `designs/`, golden
+  models in `models/`, firmware in `sw/` (OpenTitan-style ip/top split).
+- ip/uart: added a receiver (two-flop synchronizer, mid-bit sampling), a
+  serial-line driver and an incremental monitor for benches, and an ASCII
+  waveform test. hardcaml_waveterm only draws Unicode boxes, so
+  `testlib/ascii_wave.ml` maps them to `-|+`.
+- ip/rv32e: multi-cycle RV32E core (4 cycles per instruction, loads 5,
+  shifts 5 + shamt; serial shifter instead of a barrel shifter to save
+  area). ALU (one shared 33-bit adder for ADD/SUB/SLT/SLTU/branches) and
+  immediate generator (per-bit-range muxes) are proved equal to plain
+  references with Hardcaml_verify.Sec + z3; a mutant proves the check can
+  fail. The decoder matches the golden model on 362,148 words. The core
+  matches the model in lockstep on directed programs, every trap, and 300
+  random 80-instruction programs (all passed on the first run).
+- models/rv32_model: memory-mapped I/O hooks. In lockstep, I/O loads take
+  the value the hardware read, because UART status depends on timing.
+- designs/mcu: core + 4 KiB RAM (four 1024 x 8 byte lanes) + UART + LEDs.
+  sw/echo (C, riscv64-unknown-elf-gcc -march=rv32e -mabi=ilp32e, 431
+  bytes) runs in Cyclesim and on Verilator: banner, echo, upper-cased line,
+  line length on the LEDs; 46,208 instructions in lockstep, no mismatch.
+- iCE40HX1K: 1079/1280 LCs (84%), 10/16 BRAMs, 46 MHz (12 MHz needed).
+- S3 additions: `check_resources.sh` (exact BRAM count per design);
+  `check_names.sh` now only counts clocked flip-flops.
+- Costs: all S0/S1 tests ~5 s; MCU on Verilator ~11 s; MCU synthesis ~16 s.
+- Defects: B-0004..B-0008. The cheap stages found everything so far, but
+  all hardware-relevant defects were in testbenches and checks, not in the
+  RTL; nothing has been on a board yet.
+- Tools added: z3 (SAT for Hardcaml_verify), hardcaml_verify,
+  gcc-riscv64-unknown-elf.
+
 ## 2026-10-26: toolchain, test ladder, UART, RV32E model
 
 - Verified that the devcontainer toolchain also works in a Claude Code cloud

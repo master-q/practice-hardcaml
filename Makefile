@@ -6,18 +6,22 @@
 #   make synth      stage 3: Yosys + nextpnr for every board project
 #   make names      naming discipline on the generated Verilog
 #   make langcheck  ASCII-only policy on all tracked files
+#   make selftest   negative tests for the checks themselves
 #   make ci         everything above, including verilate
 # Flash a project with `make -C <project> prog` (stage 4, by hand).
 
 BOARD_PROJECTS := designs/blink designs/hello designs/mcu
 
-all: setup langcheck test synth names
+all: setup langcheck selftest test synth names
 
 setup:
 	@scripts/setup_clone.sh
 
 langcheck:
 	@scripts/check_ascii.sh
+
+selftest:
+	@scripts/selftest.sh
 
 test:
 	dune build @runtest
@@ -31,10 +35,10 @@ synth:
 names:
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p names || exit 1; done
 
-ci: langcheck test verilate synth names
+ci: langcheck selftest test verilate synth names
 
 clean:
 	dune clean
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p clean; done
 
-.PHONY: all setup langcheck test verilate synth names ci clean
+.PHONY: all setup langcheck selftest test verilate synth names ci clean

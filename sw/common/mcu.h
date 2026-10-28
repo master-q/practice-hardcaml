@@ -6,6 +6,8 @@
 
 /* Write: transmit a byte (drop it unless UART_TX_READY).
    Read: the last received byte; clears UART_RX_VALID. */
+/* The receiver holds a single byte: a byte that arrives before the previous
+   one was read overwrites it. */
 #define UART_DATA MMIO(0x10000000)
 #define UART_STATUS MMIO(0x10000004)
 #define UART_TX_READY 0x1u

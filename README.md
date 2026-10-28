@@ -13,21 +13,29 @@ project log.
 
 ## Projects
 
-| Directory | Description | Status |
+| Directory | Description | Stages |
 |-----------|-------------|--------|
-| [blink](blink/) | LED blinker | Cyclesim + synth |
-| [uart](uart/) | 8N1 UART TX, prints "Hello, iCEstick!" at 115200 baud | Cyclesim + Verilator + synth |
-| [rv32_model](rv32_model/) | RV32E golden model and assembler (pure OCaml) | tests |
+| [ip/uart](ip/uart/) | 8N1 UART transmitter and receiver | S1, S2 |
+| [ip/rv32e](ip/rv32e/) | Multi-cycle RV32E core | S0 (SAT proofs), S1 (lockstep, random programs) |
+| [designs/blink](designs/blink/) | LED blinker | S1, S3 |
+| [designs/hello](designs/hello/) | Prints "Hello, iCEstick!" at 115200 baud | S1, S2, S3 |
+| [designs/mcu](designs/mcu/) | RV32E MCU running C firmware (UART echo) | S1, S2, S3 |
+| [models/rv32_model](models/rv32_model/) | RV32E golden model and assembler | tests |
+| [sw](sw/) | MCU firmware (C, built with riscv64-unknown-elf-gcc) | -- |
+
+No design has been run on a board yet (S4).
 
 ## Quick start
 
-    make setup         # once per clone: enable the git hooks
-    make               # langcheck, dune test, synth, naming check
-    make ci            # the above plus the Verilator stage
-    make -C uart prog  # flash the UART demo to an iCEstick
+    make setup               # once per clone: enable the git hooks
+    make                     # langcheck, tests, synthesis, S3 checks
+    make ci                  # the above plus the Verilator stage
+    make -C designs/mcu prog # flash the MCU with the echo firmware
 
-Read the UART output with e.g. `picocom -b 115200 /dev/ttyUSB1` (the
-iCEstick's FTDI chip exposes two ports; the UART is the second).
+Then talk to the MCU with e.g. `picocom -b 115200 /dev/ttyUSB1` (the
+iCEstick's FTDI chip exposes two ports; the UART is the second). Type a
+line and press Enter; it answers in upper case and shows the line length on
+the LEDs.
 
 ## Toolchain
 

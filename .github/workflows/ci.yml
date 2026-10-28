@@ -26,7 +26,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y yosys nextpnr-ice40 fpga-icestorm \
-            fpga-icestorm-chipdb verilator libgmp-dev libffi-dev pkg-config
+            fpga-icestorm-chipdb verilator z3 gcc-riscv64-unknown-elf \
+            binutils-riscv64-unknown-elf libgmp-dev libffi-dev pkg-config
 
       - uses: ocaml/setup-ocaml@v3
         with:
@@ -35,7 +36,7 @@ jobs:
       - name: Install OCaml packages
         run: >
           opam install -y dune hardcaml ppx_hardcaml hardcaml_waveterm
-          hardcaml_verilator ppx_jane ppx_expect
+          hardcaml_verilator hardcaml_verify ppx_jane ppx_expect
 
-      - name: Test ladder (S1-S3)
+      - name: Test ladder (S0-S3)
         run: opam exec -- make ci

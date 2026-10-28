@@ -73,10 +73,10 @@ or from the golden model), as done in `rv32_model/test`.
 
 | Stage | What | Command | Runs |
 |-------|------|---------|------|
-| S0 | OCaml type check, HardCaml elaboration checks | `dune build` | every change |
+| S0 | OCaml type check, HardCaml elaboration checks; SAT equivalence proofs (`Hardcaml_verify.Sec` + z3) | `dune build`, `make test` | every change |
 | S1 | Cyclesim expect tests; OCaml golden model | `make test` | every change |
 | S2 | the same benches on Verilator | `make verilate` | before pushing; in CI |
-| S3 | Yosys + nextpnr (LCs, Fmax), naming check | `make synth names` | every change |
+| S3 | Yosys + nextpnr (LCs, Fmax), expected BRAM count, naming check | `make synth names` | every change |
 | S4 | iCEstick | `make -C <project> prog` | milestones, by hand |
 
 Two axes run in parallel from the first module:
@@ -111,11 +111,24 @@ simulation/synthesis mismatches unlikely.
 
 ### Program loading without a bootloader
 
-A UART bootloader would cost logic on a 1280-LC device. Instead, the CPU's
-program memory will be BRAM with known placeholder contents, and
-`icebram` will swap a new program image into the already placed-and-routed
-bitstream. That takes seconds, needs no re-synthesis and costs no LCs. The
-same hex image initialises memory in Cyclesim and Verilator.
+A UART bootloader would cost logic on a 1280-LC device. Today the board
+generator (`designs/mcu/bin/main.ml`) writes the firmware into the RAM's
+initial contents and the design is re-synthesised (about 16 s). The next
+step is `icebram`: synthesise once with known placeholder contents and swap
+a new program image into the placed-and-routed bitstream in seconds,
+without touching the logic. Simulators load the same image through the
+MCU's load port.
+
+### What runs where (MCU)
+
+| Check | Stage | Cost |
+|-------|-------|------|
+| ALU and immediate generator equal their references (SAT, all inputs) | S0 | < 1 s |
+| Decoder classifies 362k instruction words like the golden model | S1 | ~1 s |
+| Core lockstep: directed programs, every trap, 300 random programs | S1 | ~2 s |
+| MCU runs the C echo firmware, UART in/out, lockstep (46k instructions) | S1 | ~2 s |
+| Same MCU test on Verilator | S2 | ~11 s |
+| Fits: LCs, exactly 10 BRAMs, Fmax, all flip-flops named | S3 | ~16 s |
 
 ### CPU plan
 
