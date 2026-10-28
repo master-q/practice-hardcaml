@@ -1,0 +1,5 @@
+(library
+ (name rv32_bench)
+ (libraries rv32 rv32_model hardcaml)
+ (preprocess
+  (pps ppx_jane)))

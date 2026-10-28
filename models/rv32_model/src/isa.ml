@@ -1,9 +1,19 @@
-(* RV32E base integer ISA: instruction representation and decoder.
-   RV32E has 16 integer registers (x0..x15); an encoding that names x16..x31
-   is illegal. *)
+(* RV32I / RV32E base integer ISA: instruction representation and decoder.
+   RV32I has 32 integer registers; RV32E has 16 (x0..x15), and an encoding
+   that names x16..x31 is illegal there. *)
 
 open Sexplib0.Sexp_conv
 open Ppx_compare_lib.Builtin
+
+type base =
+  | Rv32i
+  | Rv32e
+[@@deriving sexp_of, equal]
+
+let num_regs = function
+  | Rv32i -> 32
+  | Rv32e -> 16
+;;
 
 type reg = int [@@deriving sexp_of, equal]
 
@@ -81,7 +91,7 @@ let imm_j w =
     ~width:21
 ;;
 
-let decode word =
+let decode ~base word =
   let illegal = Illegal word in
   let opcode = bits word ~hi:6 ~lo:0 in
   let rd = bits word ~hi:11 ~lo:7 in
@@ -90,8 +100,8 @@ let decode word =
   let rs2 = bits word ~hi:24 ~lo:20 in
   let funct7 = bits word ~hi:31 ~lo:25 in
   (* Only the register fields an instruction format actually uses are
-     checked against the RV32E limit. *)
-  let regs_ok l = List.for_all (fun r -> r < 16) l in
+     checked against the register count. *)
+  let regs_ok l = List.for_all (fun r -> r < num_regs base) l in
   let insn, used =
     match opcode with
     | 0b0110111 -> Lui { rd; imm = imm_u word }, [ rd ]

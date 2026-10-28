@@ -1,32 +1,44 @@
-; Firmware for designs/mcu, built with the RISC-V cross compiler
+; Firmware for the MCU designs, built with the RISC-V cross compiler
 ; (riscv64-unknown-elf-gcc, see .devcontainer/devcontainer.json).
+;   echo_rv32e.bin       iCEstick (designs/mcu): RV32E, 4 KiB
+;   echo_rv32i.bin       Colorlight i9 (designs/mcu_i9): RV32I, 64 KiB
+;   dhrystone_rv32i.bin  Colorlight i9 benchmark, 500 runs
+;   dhrystone_sim.bin    same, 50 runs, for the simulation tests
 
 (rule
- (targets echo.elf echo.bin)
- (deps
-  common/crt0.S
-  common/link.ld
-  common/mcu.h
-  echo/main.c)
+ (targets echo_rv32e.bin echo_rv32e.elf)
+ (deps build.sh (glob_files common/*) (glob_files libc/include/*) echo/main.c)
  (action
-  (progn
-   (run
-    riscv64-unknown-elf-gcc
-    -march=rv32e
-    -mabi=ilp32e
-    -Os
-    -ffreestanding
-    -nostdlib
-    -mno-relax
-    -Wl,--no-warn-rwx-segments
-    -Wall
-    -Werror
-    -Icommon
-    -T
-    common/link.ld
-    -o
-    echo.elf
-    common/crt0.S
-    echo/main.c
-    -lgcc)
-   (run riscv64-unknown-elf-objcopy -O binary echo.elf echo.bin))))
+  (run bash build.sh echo_rv32e.bin rv32e 4 -Wall -Werror -- echo/main.c)))
+
+(rule
+ (targets echo_rv32i.bin echo_rv32i.elf)
+ (deps build.sh (glob_files common/*) (glob_files libc/include/*) echo/main.c)
+ (action
+  (run bash build.sh echo_rv32i.bin rv32i 64 -Wall -Werror -- echo/main.c)))
+
+(rule
+ (targets dhrystone_rv32i.bin dhrystone_rv32i.elf)
+ (deps
+  build.sh
+  (glob_files common/*)
+  (glob_files libc/*)
+  (glob_files libc/include/*)
+  (glob_files dhrystone/*))
+ (action
+  (run bash build.sh dhrystone_rv32i.bin rv32i 64 -O2 -Idhrystone -w -std=gnu89
+   -fno-builtin-printf -DNUMBER_OF_RUNS=500 -- dhrystone/dhrystone_main.c
+   dhrystone/dhrystone.c dhrystone/harness.c libc/printf.c libc/string.c)))
+
+(rule
+ (targets dhrystone_sim.bin dhrystone_sim.elf)
+ (deps
+  build.sh
+  (glob_files common/*)
+  (glob_files libc/*)
+  (glob_files libc/include/*)
+  (glob_files dhrystone/*))
+ (action
+  (run bash build.sh dhrystone_sim.bin rv32i 64 -O2 -Idhrystone -w -std=gnu89
+   -fno-builtin-printf -DNUMBER_OF_RUNS=50 -- dhrystone/dhrystone_main.c
+   dhrystone/dhrystone.c dhrystone/harness.c libc/printf.c libc/string.c)))

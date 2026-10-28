@@ -1,0 +1,5 @@
+(library
+ (name rv32)
+ (libraries hardcaml rv32_model)
+ (preprocess
+  (pps ppx_hardcaml ppx_jane)))

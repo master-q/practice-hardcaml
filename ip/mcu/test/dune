@@ -1,0 +1,10 @@
+(library
+ (name mcu_test)
+ (inline_tests
+  (deps
+   %{workspace_root}/sw/echo_rv32e.bin
+   %{workspace_root}/sw/echo_rv32i.bin
+   %{workspace_root}/sw/dhrystone_sim.bin))
+ (libraries mcu mcu_bench hardcaml stdio)
+ (preprocess
+  (pps ppx_jane ppx_expect)))

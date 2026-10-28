@@ -1,4 +1,4 @@
-(* Architectural state and single-step execution of RV32E.
+(* Architectural state and single-step execution of RV32I / RV32E.
    [step] returns a retirement record describing exactly what one
    instruction changed. The CPU core will emit the same record so the two can
    be compared instruction by instruction (lockstep). *)
@@ -41,7 +41,8 @@ let no_io =
 ;;
 
 type t =
-  { regs : int array
+  { base : Isa.base
+  ; regs : int array
   ; mutable pc : int
   ; mem : Bytes.t
   ; io : io
@@ -49,8 +50,10 @@ type t =
 
 let mask32 v = v land 0xffff_ffff
 let signed32 v = Isa.sign_extend v ~width:32
-let create ?(io = no_io) ~mem_bytes () =
-  { regs = Array.make 16 0; pc = 0; mem = Bytes.make mem_bytes '\000'; io }
+let create ?(io = no_io) ~base ~mem_bytes () =
+  { base
+  ; regs = Array.make (Isa.num_regs base) 0
+  ; pc = 0; mem = Bytes.make mem_bytes '\000'; io }
 ;;
 let reg t r = if r = 0 then 0 else t.regs.(r)
 let pc t = t.pc
@@ -131,7 +134,7 @@ let step t : (retire, trap) result =
   let seq = mask32 (pc + 4) in
   let jump target = if target land 3 <> 0 then Error (Misaligned_fetch target) else Ok target in
   let* rd_write, mem_write, next_pc =
-    match Isa.decode insn with
+    match Isa.decode ~base:t.base insn with
     | Lui { rd; imm } -> Ok (Some (rd, mask32 imm), None, seq)
     | Auipc { rd; imm } -> Ok (Some (rd, mask32 (pc + imm)), None, seq)
     | Jal { rd; offset } ->

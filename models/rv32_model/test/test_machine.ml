@@ -3,7 +3,7 @@ open Sexplib0.Sexp_conv
 module A = Asm
 
 let run ?(mem_bytes = 256) program =
-  let m = Machine.create ~mem_bytes () in
+  let m = Machine.create ~base:Rv32e ~mem_bytes () in
   Machine.load_program m program;
   let trace, trap = Machine.run m in
   m, trace, trap
@@ -110,6 +110,11 @@ let%expect_test "traps" =
   in
   (* add x16, x0, x0 is legal RV32I but illegal RV32E. *)
   trap [ 0x00000833 ];
+  (let m = Machine.create ~base:Rv32i ~mem_bytes:64 () in
+   Machine.load_program m [ 0x00000833; A.ecall ];
+   let trace, trap = Machine.run m in
+   Printf.printf "rv32i: retired %d, " (List.length trace);
+   print_trap trap);
   trap [ A.lw 1 0 2 ];
   trap [ A.lw 1 0 1024 ];
   trap [ A.jal 0 6 ];
@@ -117,6 +122,7 @@ let%expect_test "traps" =
   [%expect
     {|
     ((Illegal_instruction 2099))
+    rv32i: retired 1, (Ecall)
     ((Misaligned_access 2))
     ((Access_fault 1024))
     ((Misaligned_fetch 6))
@@ -126,7 +132,7 @@ let%expect_test "traps" =
 
 let%expect_test "assembler round-trips through the decoder" =
   List.iter
-    (fun w -> print_endline (Sexplib0.Sexp.to_string ([%sexp_of: Isa.t] (Isa.decode w))))
+    (fun w -> print_endline (Sexplib0.Sexp.to_string ([%sexp_of: Isa.t] (Isa.decode ~base:Rv32e w))))
     [ A.lui 1 0x12345000
     ; A.beq 1 2 (-4096)
     ; A.jal 15 (-2)
@@ -151,7 +157,7 @@ let%expect_test "memory-mapped io bypasses ram" =
     ; store = (fun ~addr:_ ~bytes:_ ~value -> Buffer.add_char out (Char.chr (value land 0xff)))
     }
   in
-  let m = Machine.create ~io ~mem_bytes:64 () in
+  let m = Machine.create ~io ~base:Rv32e ~mem_bytes:64 () in
   Machine.load_program
     m
     ([ A.lui 1 0x1000_0000; A.addi 2 0 (Char.code 'o'); A.sw 2 1 0; A.lw 3 1 4; A.lb 4 1 0 ]

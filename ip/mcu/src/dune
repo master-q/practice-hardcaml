@@ -1,0 +1,5 @@
+(library
+ (name mcu)
+ (libraries rv32 rv32_model uart hardcaml)
+ (preprocess
+  (pps ppx_hardcaml ppx_jane)))

@@ -1,4 +1,4 @@
-/* Memory-mapped registers of the RV32E MCU (designs/mcu/src/mcu.ml). */
+/* Memory-mapped registers of the MCU (ip/mcu/src/mcu.ml). */
 #ifndef MCU_H
 #define MCU_H
 
@@ -12,8 +12,11 @@
 #define UART_STATUS MMIO(0x10000004)
 #define UART_TX_READY 0x1u
 #define UART_RX_VALID 0x2u
-/* The five iCEstick LEDs, bits 4..0 = D5..D1. */
+/* LEDs, bits 7..0 (iCEstick: bits 4..0 = D5..D1; Colorlight i9: bit 0). */
 #define LEDS MMIO(0x10000008)
+/* Clock cycles and retired instructions since reset (32 bits, wrap). */
+#define CYCLE MMIO(0x1000000c)
+#define INSTRET MMIO(0x10000010)
 
 static inline void uart_putc(char c)
 {

@@ -1,7 +1,8 @@
-(* Minimal RV32E encoder, so tests can be written without an external
-   RISC-V toolchain. Register numbers are plain ints (x0..x15). *)
+(* Minimal RV32I encoder, so tests can be written without an external
+   RISC-V toolchain. Register numbers are plain ints (x0..x31); whether
+   x16..x31 are legal (RV32E) is the decoder's business. *)
 
-let check_reg r = if r < 0 || r > 15 then invalid_arg (Printf.sprintf "RV32E has no x%d" r)
+let check_reg r = if r < 0 || r > 31 then invalid_arg (Printf.sprintf "no register x%d" r)
 
 let check_imm v ~bits ~what =
   let lo = -(1 lsl (bits - 1))

@@ -1,5 +1,5 @@
 (library
- (name mcu)
- (libraries rv32e uart hardcaml)
+ (name mcu_icestick)
+ (libraries mcu hardcaml)
  (preprocess
   (pps ppx_hardcaml ppx_jane)))

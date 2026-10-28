@@ -1,0 +1,5 @@
+(library
+ (name mcu_gen)
+ (libraries mcu hardcaml stdio)
+ (preprocess
+  (pps ppx_jane)))

@@ -6,7 +6,7 @@ int main(void)
 {
   char line[64];
 
-  uart_puts("RV32E MCU ready\r\n");
+  uart_puts("RV32 MCU ready\r\n");
   for (;;) {
     int n = 0;
     uart_puts("> ");
