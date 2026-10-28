@@ -65,6 +65,7 @@ let of_core (o : Bits.t ref Rv32.Core.O.t) : Machine.retire =
        else None)
   ; mem_write
   ; next_pc = u o.retire_next_pc
+  ; trap = None
   }
 ;;
 

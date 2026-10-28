@@ -80,8 +80,8 @@ let%expect_test "loads and stores, sign extension, retire record" =
   [%expect
     {|
     x3=0xffffff80 x4=0x00000080 x5=0xffff80ff x6=0x00007f01 x7=0x80ff0001
-    ((pc 12)(insn 2138147)(rd_write())(mem_write((128 4 2164227841)))(next_pc 16))
-    ((pc 32)(insn 32931)(rd_write())(mem_write((129 1 0)))(next_pc 36))
+    ((pc 12)(insn 2138147)(rd_write())(mem_write((128 4 2164227841)))(next_pc 16)(trap()))
+    ((pc 32)(insn 32931)(rd_write())(mem_write((129 1 0)))(next_pc 36)(trap()))
     |}]
 ;;
 
@@ -166,4 +166,118 @@ let%expect_test "memory-mapped io bypasses ram" =
   Printf.printf "%S x3=%d " (Buffer.contents out) (Machine.reg m 3);
   print_trap trap;
   [%expect {| "ok" x3=3 (Ecall) |}]
+;;
+
+(* Zicsr, traps and interrupts. *)
+let zrun ?(csr_input = fun _ -> 0) program =
+  let m = Machine.create ~zicsr:true ~csr_input ~base:Rv32e ~mem_bytes:1024 () in
+  Machine.load_program m program;
+  m
+;;
+
+let print_trace m ~steps =
+  for _ = 1 to steps do
+    match Machine.step m with
+    | Ok r ->
+      Printf.printf
+        "pc=%03x %s%s\n"
+        r.pc
+        (match r.rd_write with Some (rd, v) -> Printf.sprintf "x%d=%x " rd v | None -> "")
+        (match r.trap with Some c -> Printf.sprintf "trap mcause=%x -> %x" c r.next_pc | None -> "")
+    | Error t -> print_trap (Some t)
+  done
+;;
+
+let%expect_test "CSR read/modify/write, WLRL fields, read-only and unknown CSRs" =
+  let m =
+    zrun
+      ~csr_input:(fun csr -> if csr = A.Csr.mcycle then 1234 else 0)
+      [ A.addi 1 0 (-1)
+      ; A.csrrw 2 A.Csr.mscratch 1 (* x2 = 0, mscratch = ffffffff *)
+      ; A.csrrc 3 A.Csr.mscratch 1 (* x3 = ffffffff, mscratch = 0 *)
+      ; A.csrrw 0 A.Csr.mcause 1 (* WLRL: 8000000f *)
+      ; A.csrr 4 A.Csr.mcause
+      ; A.csrrw 0 A.Csr.mtvec 1 (* low bits read 0 *)
+      ; A.csrr 5 A.Csr.mtvec
+      ; A.csrrsi 6 A.Csr.mstatus 8 (* MIE; x6 = old = 1800 *)
+      ; A.csrr 7 A.Csr.mstatus
+      ; A.csrr 8 A.Csr.mcycle
+      ; A.csrr 9 A.Csr.mhartid
+      ; A.csrrw 0 A.Csr.mhartid 1 (* write to read-only: illegal, traps to mtvec *)
+      ]
+  in
+  print_trace m ~steps:12;
+  [%expect {|
+    pc=000 x1=ffffffff
+    pc=004 x2=0
+    pc=008 x3=ffffffff
+    pc=00c
+    pc=010 x4=8000000f
+    pc=014
+    pc=018 x5=fffffffc
+    pc=01c x6=1800
+    pc=020 x7=1808
+    pc=024 x8=4d2
+    pc=028 x9=0
+    pc=02c trap mcause=2 -> fffffffc
+    |}]
+;;
+
+let%expect_test "no handler: traps halt; ecall with a handler enters it, mret returns" =
+  let halting = zrun [ A.ecall ] in
+  print_trace halting ~steps:1;
+  let m =
+    zrun
+      ([ A.addi 1 0 0x40; A.csrw A.Csr.mtvec 1; A.ecall; A.addi 2 0 7; A.ebreak ]
+       @ List.init 11 (fun _ -> A.nop)
+       @ [ (* 0x40: handler *)
+           A.csrr 3 A.Csr.mcause
+         ; A.csrr 4 A.Csr.mepc
+         ; A.addi 4 4 4
+         ; A.csrw A.Csr.mepc 4
+         ; A.mret
+         ])
+  in
+  print_trace m ~steps:12;
+  [%expect {|
+    (Ecall)
+    pc=000 x1=40
+    pc=004
+    pc=008 trap mcause=b -> 40
+    pc=040 x3=b
+    pc=044 x4=8
+    pc=048 x4=c
+    pc=04c
+    pc=050
+    pc=00c x2=7
+    pc=010 trap mcause=3 -> 40
+    pc=040 x3=3
+    pc=044 x4=10
+    |}]
+;;
+
+let%expect_test "interrupts: only when enabled, mret restores MIE" =
+  let m = zrun [ A.addi 1 0 0x40; A.csrw A.Csr.mtvec 1; A.nop; A.nop ] in
+  print_trace m ~steps:2;
+  let show r =
+    match r with
+    | Ok (r : Machine.retire) ->
+      Printf.printf "interrupt at pc=%x mcause=%x -> %x\n" r.pc (Option.get r.trap) r.next_pc
+    | Error e -> print_endline ("refused: " ^ e)
+  in
+  show (Machine.interrupt m ~code:7);
+  Machine.load_program m ~at:8 [ A.addi 2 0 0x80; A.csrw A.Csr.mie 2; A.csrrsi 0 A.Csr.mstatus 8 ];
+  print_trace m ~steps:3;
+  show (Machine.interrupt m ~code:7);
+  show (Machine.interrupt m ~code:7);
+  [%expect {|
+    pc=000 x1=40
+    pc=004
+    refused: interrupt while mstatus.MIE = 0
+    pc=008 x2=80
+    pc=00c
+    pc=010
+    interrupt at pc=14 mcause=80000007 -> 40
+    refused: interrupt while mstatus.MIE = 0
+    |}]
 ;;

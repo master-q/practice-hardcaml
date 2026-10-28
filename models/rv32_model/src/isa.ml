@@ -45,6 +45,17 @@ type alu =
   | And
 [@@deriving sexp_of, equal]
 
+type csr_op =
+  | Csrrw
+  | Csrrs
+  | Csrrc
+[@@deriving sexp_of, equal]
+
+type csr_src =
+  | Csr_reg of reg
+  | Csr_imm of int (* uimm, 0..31 *)
+[@@deriving sexp_of, equal]
+
 type t =
   | Lui of { rd : reg; imm : int }
   | Auipc of { rd : reg; imm : int }
@@ -58,6 +69,9 @@ type t =
   | Fence
   | Ecall
   | Ebreak
+  | Csr of { op : csr_op; rd : reg; src : csr_src; csr : int } (* Zicsr *)
+  | Mret
+  | Wfi
   | Illegal of int
 [@@deriving sexp_of, equal]
 
@@ -91,7 +105,9 @@ let imm_j w =
     ~width:21
 ;;
 
-let decode ~base word =
+(* [zicsr]: decode the CSR instructions, MRET and WFI (otherwise illegal).
+   Whether a CSR address exists is decided by the machine, not here. *)
+let decode ?(zicsr = false) ~base word =
   let illegal = Illegal word in
   let opcode = bits word ~hi:6 ~lo:0 in
   let rd = bits word ~hi:11 ~lo:7 in
@@ -171,6 +187,14 @@ let decode ~base word =
     | 0b0001111 when funct3 = 0 -> Fence, []
     | 0b1110011 when word = 0x00000073 -> Ecall, []
     | 0b1110011 when word = 0x00100073 -> Ebreak, []
+    | 0b1110011 when zicsr && word = 0x30200073 -> Mret, []
+    | 0b1110011 when zicsr && word = 0x10500073 -> Wfi, []
+    | 0b1110011 when zicsr && funct3 <> 0 && funct3 <> 4 ->
+      let csr = bits word ~hi:31 ~lo:20 in
+      let op = match funct3 land 3 with 1 -> Csrrw | 2 -> Csrrs | _ -> Csrrc in
+      if funct3 < 4
+      then Csr { op; rd; src = Csr_reg rs1; csr }, [ rd; rs1 ]
+      else Csr { op; rd; src = Csr_imm rs1; csr }, [ rd ]
     | _ -> illegal, []
   in
   if regs_ok used then insn else illegal

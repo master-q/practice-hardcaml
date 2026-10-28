@@ -133,3 +133,47 @@ let li rd value =
   let hi = (value - lo) land 0xffff_ffff in
   [ lui rd hi; addi rd rd lo ]
 ;;
+
+(* Zicsr and privileged instructions. *)
+let csr_type ~funct3 rd rs1_or_uimm csr =
+  check_reg rd;
+  if csr < 0 || csr > 0xfff then invalid_arg "csr out of range";
+  field csr ~hi:31 ~lo:20
+  lor field rs1_or_uimm ~hi:19 ~lo:15
+  lor field funct3 ~hi:14 ~lo:12
+  lor field rd ~hi:11 ~lo:7
+  lor 0b1110011
+;;
+
+let csrrw rd csr rs1 = check_reg rs1; csr_type ~funct3:0b001 rd rs1 csr
+let csrrs rd csr rs1 = check_reg rs1; csr_type ~funct3:0b010 rd rs1 csr
+let csrrc rd csr rs1 = check_reg rs1; csr_type ~funct3:0b011 rd rs1 csr
+
+let csr_imm ~funct3 rd csr uimm =
+  if uimm < 0 || uimm > 31 then invalid_arg "uimm out of range";
+  csr_type ~funct3 rd uimm csr
+;;
+
+let csrrwi = csr_imm ~funct3:0b101
+let csrrsi = csr_imm ~funct3:0b110
+let csrrci = csr_imm ~funct3:0b111
+let csrr rd csr = csrrs rd csr 0
+let csrw csr rs1 = csrrw 0 csr rs1
+let mret = 0x30200073
+let wfi = 0x10500073
+
+module Csr = struct
+  let mstatus = 0x300
+  let misa = 0x301
+  let mie = 0x304
+  let mtvec = 0x305
+  let mscratch = 0x340
+  let mepc = 0x341
+  let mcause = 0x342
+  let mtval = 0x343
+  let mip = 0x344
+  let mcycle = 0xb00
+  let minstret = 0xb02
+  let cycle = 0xc00
+  let mhartid = 0xf14
+end
