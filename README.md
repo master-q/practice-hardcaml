@@ -59,7 +59,8 @@ The UART goes through the ext board's DAPLink (USB CDC serial). The
 firmware runs Dhrystone (500 runs) and prints cycles and DMIPS; reset the
 board (or reload) to run it again. `make -C designs/mcu_i9 flash` writes
 the SPI flash instead of the FPGA's SRAM. Results so far are from
-simulation only; see [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+simulation only; see [docs/BENCHMARKS.md](docs/BENCHMARKS.md). First
+session: [docs/BRINGUP_I9.md](docs/BRINGUP_I9.md).
 
 ## Toolchain
 

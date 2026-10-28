@@ -122,8 +122,9 @@ verilate:
 names: $(BUILD)/top.v
 	$(ROOT)/scripts/check_names.sh $<
 
-# Flashing requires every S3 check to pass (B-0015).
-prog: all names
+# Flashing requires every S3 check (B-0015) and, where the design has
+# one, the board simulation to pass.
+prog: all names $(if $(wildcard tb_top.v),board-sim)
 	iceprog $(BUILD)/top.bin
 
 clean:

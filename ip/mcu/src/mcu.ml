@@ -22,6 +22,7 @@
 open! Base
 open! Hardcaml
 open Signal
+module Startup = Startup
 
 module Config = struct
   type t =

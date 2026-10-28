@@ -5,7 +5,8 @@
 #   make verilate   stage 2: the same benches on Verilator, tens of seconds
 #   make synth      stage 3: Yosys + nextpnr for every board project
 #   make board-sim  the generated iCEstick Verilog, firmware and UART at pin
-#                   level in Icarus Verilog (catches board-top problems)
+#                   level in Icarus Verilog (catches board-top problems);
+#                   board-sim-i9 does the same for the i9 (slow, in ci)
 #   make names      naming discipline on the generated Verilog
 #   make langcheck  ASCII-only policy on all tracked files
 #   make selftest   negative tests for the checks themselves
@@ -53,10 +54,14 @@ synth:
 board-sim:
 	$(MAKE) --no-print-directory -C designs/mcu board-sim
 
+# The i9 board simulation takes about 2 minutes (Icarus, UART output).
+board-sim-i9:
+	$(MAKE) --no-print-directory -C designs/mcu_i9 board-sim
+
 names:
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p names || exit 1; done
 
-ci: langcheck selftest test board-sim verilate synth names icebram-check ecpbram-check
+ci: langcheck selftest test board-sim board-sim-i9 verilate synth names icebram-check ecpbram-check
 
 mcu:
 	$(MAKE) -C designs/mcu
@@ -86,4 +91,4 @@ clean:
 	dune clean
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p clean; done
 
-.PHONY: versions board-sim mcu mcu-prog mcu-term i9 i9-prog i9-term ecpbram-check icebram-check all setup langcheck selftest test verilate synth names ci clean
+.PHONY: versions board-sim board-sim-i9 mcu mcu-prog mcu-term i9 i9-prog i9-term ecpbram-check icebram-check all setup langcheck selftest test verilate synth names ci clean

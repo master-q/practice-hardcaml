@@ -4,7 +4,14 @@
 
    Pins (designs/mcu_i9/colorlight_i9.lpf) follow wuxx/Colorlight-FPGA-Projects:
    clock P3, UART TX J17 / RX H18 (as on the i5 ext board), LED D2 on L2.
-   The LED is driven active low, as on the other Colorlight modules. *)
+   The LED is driven active low, as on the other Colorlight modules.
+
+   Bring-up aids (B-0014; docs/BRINGUP_I9.md):
+   - the MCU is held in reset for about 21 ms after configuration
+     (Mcu.Startup; EXPERIMENT=no-hold removes it);
+   - the single LED shows the state: slow blink = clock and bitstream run
+     but the firmware has not started; steady on = firmware started (crt0
+     sets LEDS bit 0); fast blink = the core halted (trap). *)
 open! Base
 open! Hardcaml
 open Signal
@@ -36,19 +43,24 @@ module O = struct
 end
 
 let create scope (i : _ I.t) =
+  let free = Reg_spec.create ~clock:i.clock () in
+  let hold = Mcu.Startup.hold ~clock_hz scope ~clock:i.clock in
+  let%hw blink = reg_fb free ~width:24 ~f:(fun d -> d +:. 1) in
   let o =
     Mcu.hierarchical
       config
       scope
       { Mcu.I.clock = i.clock
-      ; clear = gnd
+      ; clear = hold
       ; uart_rx = i.uart_rx
       ; load_we = gnd
       ; load_addr = zero Mcu.max_word_bits
       ; load_data = zero 32
       }
   in
-  { O.uart_tx = o.uart_tx; led_n = ~:(o.leds.:(0)) }
+  let started = o.leds.:(0) in
+  let led = mux2 o.core.halted blink.:(21) (mux2 started vdd (msb blink)) in
+  { O.uart_tx = o.uart_tx; led_n = ~:led }
 ;;
 
 let circuit scope =

@@ -3,6 +3,20 @@
 A dated log of the project, newest entry first. Each entry records what was
 done, what was learned, and the numbers measured that day.
 
+## 2026-10-29: i9 bring-up preparation (#16)
+
+- Issues filed: toolchain pinning and checks (#11-#15, to be done in a
+  later session with persistent storage), i9 bring-up (#16),
+  riscv-arch-test (#17).
+- Mcu.Startup: the start-up reset hold (about 20 ms at any clock,
+  EXPERIMENT=no-hold) shared by both board tops.
+- i9 top: reset hold; the single LED shows slow blink (not started),
+  steady (firmware started, set by crt0), fast blink (core halted).
+- i9 board simulation (Dhrystone 50 runs, pin-level UART) passes; it takes
+  about 2 minutes in Icarus, so it runs in `make ci` and before
+  `make i9-prog`, not in `make`.
+- docs/BRINGUP_I9.md: checklist for the first board session.
+
 ## 2026-10-28 (late night): B-0014 root cause by ablation
 
 - On the board: EXPERIMENT=no-hold fails (no output), EXPERIMENT=

@@ -79,6 +79,19 @@ ecpbram-check: $(BUILD)/top.bit $(FW_FILE)
 	ecppack --compress $(BUILD)/direct.config $(BUILD)/direct.bit
 	cmp $(BUILD)/top.bit $(BUILD)/direct.bit && echo "OK: ecpbram bitstream equals direct synthesis"
 
+# Board-level simulation of the generated Verilog with a firmware image
+# (BOARD_SIM_FIRMWARE, default FIRMWARE) and the project's tb_top.v.
+BOARD_SIM_FIRMWARE ?= $(FIRMWARE)
+BOARD_SIM_FW_FILE := $(ROOT)/_build/default/$(BOARD_SIM_FIRMWARE)
+
+board-sim: $(EXE) $(SWSRCS)
+	cd $(ROOT) && dune build ./$(BOARD_SIM_FIRMWARE)
+	@mkdir -p $(BUILD)/board_sim
+	$(EXE) verilog $(BOARD_SIM_FW_FILE) $(BUILD)/board_sim > $(BUILD)/board_sim.v
+	iverilog -g2012 -o $(BUILD)/board_sim.vvp tb_top.v $(BUILD)/board_sim.v
+	vvp -n $(BUILD)/board_sim.vvp | tr -d '\r' | tee $(BUILD)/board_sim.log
+	@grep -q '^\[tb\] PASS' $(BUILD)/board_sim.log
+
 test:
 	cd $(ROOT) && dune test ./$(PROJECT)
 
@@ -88,14 +101,14 @@ verilate:
 names: $(BUILD)/top.v
 	$(ROOT)/scripts/check_names.sh $<
 
-# Loading requires every S3 check to pass (B-0015).
-prog: all names
+# Loading requires every S3 check and the board simulation to pass.
+prog: all names board-sim
 	openFPGALoader -b colorlight-i9 $(BUILD)/top.bit
 
-flash: all names
+flash: all names board-sim
 	openFPGALoader -b colorlight-i9 -f $(BUILD)/top.bit
 
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all resources ecpbram-check test verilate names prog flash clean
+.PHONY: all resources ecpbram-check board-sim test verilate names prog flash clean
