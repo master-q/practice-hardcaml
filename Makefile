@@ -10,6 +10,8 @@
 #   make names      naming discipline on the generated Verilog
 #   make langcheck  ASCII-only policy on all tracked files
 #   make selftest   negative tests for the checks themselves
+#   make netlist-sim the S1 MCU bench (lockstep) on the Yosys iCE40 netlist,
+#                   read back into HardCaml (post-synthesis stage, #20)
 #   make arch-test  riscv-arch-test RV32I suite on the core (fetches it once)
 #   make ci         everything above, including verilate and icebram-check
 #
@@ -29,7 +31,7 @@ I9_TTY ?= /dev/ttyACM0
 
 BOARD_PROJECTS := designs/blink designs/hello designs/mcu designs/mcu_i9
 
-all: setup langcheck selftest test board-sim synth names
+all: setup langcheck selftest test board-sim netlist-sim synth names
 
 setup:
 	@scripts/setup_clone.sh
@@ -55,6 +57,16 @@ synth:
 board-sim:
 	$(MAKE) --no-print-directory -C designs/mcu board-sim
 
+# Post-synthesis stage (#20); the second run is its negative test: with
+# every LUT complemented the bench must fail.
+NETLIST_EXE := _build/default/ip/mcu/netlist/main.exe
+netlist-sim:
+	dune build ./ip/mcu/netlist/main.exe ./sw/echo_rv32e.bin
+	$(NETLIST_EXE) _build/default/sw/echo_rv32e.bin build/netlist_sim
+	@if $(NETLIST_EXE) --invert-luts _build/default/sw/echo_rv32e.bin build/netlist_sim >/dev/null 2>&1; \
+	  then echo "FAIL: netlist-sim accepted a netlist with inverted LUTs" >&2; exit 1; \
+	  else echo "OK: netlist-sim rejects a netlist with inverted LUTs"; fi
+
 # riscv-arch-test (RV32I, reference signatures) on the core; fetches the
 # tests on first use. Issue #17.
 arch-test:
@@ -67,7 +79,7 @@ board-sim-i9:
 names:
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p names || exit 1; done
 
-ci: langcheck selftest test arch-test board-sim board-sim-i9 verilate synth names icebram-check ecpbram-check
+ci: langcheck selftest test arch-test board-sim netlist-sim board-sim-i9 verilate synth names icebram-check ecpbram-check
 
 mcu:
 	$(MAKE) -C designs/mcu
@@ -97,4 +109,4 @@ clean:
 	dune clean
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p clean; done
 
-.PHONY: versions arch-test board-sim board-sim-i9 mcu mcu-prog mcu-term i9 i9-prog i9-term ecpbram-check icebram-check all setup langcheck selftest test verilate synth names ci clean
+.PHONY: versions arch-test board-sim board-sim-i9 netlist-sim mcu mcu-prog mcu-term i9 i9-prog i9-term ecpbram-check icebram-check all setup langcheck selftest test verilate synth names ci clean

@@ -1,0 +1,6 @@
+(library
+ (name netlist_sim_test)
+ (inline_tests)
+ (libraries netlist_sim hardcaml stdio)
+ (preprocess
+  (pps ppx_hardcaml ppx_jane ppx_expect)))

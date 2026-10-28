@@ -1,0 +1,7 @@
+; Post-synthesis stage (issue #20): the S1 MCU bench on the Yosys iCE40
+; netlist of the MCU, read back into HardCaml.
+(executable
+ (name main)
+ (libraries mcu mcu_bench netlist_sim hardcaml hardcaml_verilator testlib stdio)
+ (preprocess
+  (pps ppx_jane)))

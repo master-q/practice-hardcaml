@@ -1,0 +1,7 @@
+; Post-synthesis simulation in HardCaml (issue #20): synthesise a circuit
+; with Yosys and read the iCE40 netlist back as a HardCaml circuit.
+(library
+ (name netlist_sim)
+ (libraries base stdio hardcaml hardcaml_of_verilog jsonaf)
+ (preprocess
+  (pps ppx_jane)))
