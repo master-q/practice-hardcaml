@@ -2,7 +2,7 @@
 #
 # A project Makefile sets PROJECT (its path from the repository root, e.g.
 # designs/blink), EXPECT_BRAM (number of SB_RAM40_4K blocks the design must
-# use), optionally FIRMWARE (a dune target passed to the generator, e.g.
+# use), MAX_LC (logic-cell budget; the build fails above it), optionally FIRMWARE (a dune target passed to the generator, e.g.
 # sw/echo.bin), and includes this file. The project provides bin/main.exe
 # (prints Verilog for module `top`) and icestick.pcf.
 #
@@ -43,7 +43,7 @@ $(BUILD)/top.bin: $(BUILD)/top.asc
 	icepack $< $@
 
 resources: $(BUILD)/top.asc
-	@$(ROOT)/scripts/check_resources.sh $(BUILD)/nextpnr.log $(EXPECT_BRAM)
+	@$(ROOT)/scripts/check_resources.sh $(BUILD)/nextpnr.log $(EXPECT_BRAM) $(MAX_LC)
 
 test:
 	cd $(ROOT) && dune test ./$(PROJECT)

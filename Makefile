@@ -8,7 +8,14 @@
 #   make langcheck  ASCII-only policy on all tracked files
 #   make selftest   negative tests for the checks themselves
 #   make ci         everything above, including verilate
-# Flash a project with `make -C <project> prog` (stage 4, by hand).
+#
+# The RV32E MCU on an iCEstick (S4, by hand):
+#   make mcu        build designs/mcu/build/top.bin (firmware sw/echo.bin)
+#   make mcu-prog   build and flash it
+#   make mcu-term   open the UART at 115200 baud (TTY=/dev/ttyUSB1)
+# Other designs: make -C designs/<name> prog.
+
+TTY ?= /dev/ttyUSB1
 
 BOARD_PROJECTS := designs/blink designs/hello designs/mcu
 
@@ -37,8 +44,17 @@ names:
 
 ci: langcheck selftest test verilate synth names
 
+mcu:
+	$(MAKE) -C designs/mcu
+
+mcu-prog:
+	$(MAKE) -C designs/mcu prog
+
+mcu-term:
+	picocom -b 115200 $(TTY)
+
 clean:
 	dune clean
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p clean; done
 
-.PHONY: all setup langcheck selftest test verilate synth names ci clean
+.PHONY: mcu mcu-prog mcu-term all setup langcheck selftest test verilate synth names ci clean

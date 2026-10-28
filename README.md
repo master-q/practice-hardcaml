@@ -27,15 +27,19 @@ No design has been run on a board yet (S4).
 
 ## Quick start
 
-    make setup               # once per clone: enable the git hooks
-    make                     # langcheck, tests, synthesis, S3 checks
-    make ci                  # the above plus the Verilator stage
-    make -C designs/mcu prog # flash the MCU with the echo firmware
+    make setup     # once per clone: enable the git hooks
+    make           # langcheck, tests, synthesis, S3 checks
+    make ci        # the above plus the Verilator stage
 
-Then talk to the MCU with e.g. `picocom -b 115200 /dev/ttyUSB1` (the
-iCEstick's FTDI chip exposes two ports; the UART is the second). Type a
-line and press Enter; it answers in upper case and shows the line length on
-the LEDs.
+## Running the MCU on an iCEstick
+
+    make mcu-prog  # build designs/mcu with sw/echo.bin and flash it
+    make mcu-term  # picocom -b 115200 /dev/ttyUSB1 (override with TTY=...)
+
+The iCEstick's FTDI chip exposes two serial ports; the UART is the second
+(usually `/dev/ttyUSB1`). After reset the MCU prints `RV32E MCU ready` and
+a `> ` prompt. Type a line and press Enter: it answers in upper case and
+shows the line length on the LEDs. Leave picocom with Ctrl-A Ctrl-X.
 
 ## Toolchain
 

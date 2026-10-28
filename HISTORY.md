@@ -32,6 +32,9 @@ done, what was learned, and the numbers measured that day.
 - Defects: B-0004..B-0008. The cheap stages found everything so far, but
   all hardware-relevant defects were in testbenches and checks, not in the
   RTL; nothing has been on a board yet.
+- Later the same day: `make mcu`, `make mcu-prog`, `make mcu-term` at the
+  top level; per-design logic-cell budgets (MAX_LC; mcu 1130, blink 50,
+  hello 150) enforced by check_resources.sh, with self-tests.
 - Tools added: z3 (SAT for Hardcaml_verify), hardcaml_verify,
   gcc-riscv64-unknown-elf.
 

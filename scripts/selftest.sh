@@ -32,6 +32,8 @@ sed 's/_12/count/g' "$tmp/anon.v" > "$tmp/named.v"
 printf 'Info: \t        ICESTORM_LC:   10/ 1280\nInfo: \t        ICESTORM_RAM:    9/   16\n' > "$tmp/nextpnr.log"
 ./check_resources.sh "$tmp/nextpnr.log" 10 > /dev/null 2>&1 && fail "check_resources accepted 9 BRAMs for 10"
 ./check_resources.sh "$tmp/nextpnr.log" 9 > /dev/null 2>&1 || fail "check_resources rejected a match"
+./check_resources.sh "$tmp/nextpnr.log" 9 9 > /dev/null 2>&1 && fail "check_resources accepted 10 LCs for a budget of 9"
+./check_resources.sh "$tmp/nextpnr.log" 9 10 > /dev/null 2>&1 || fail "check_resources rejected 10 LCs for a budget of 10"
 
 # The ASCII check must reject a non-ASCII commit message.
 printf 'caf\xc3\xa9\n' > "$tmp/msg"
