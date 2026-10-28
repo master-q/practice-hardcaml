@@ -14,7 +14,9 @@
 #                   netlists read back into HardCaml, and the iCEstick board
 #                   top (firmware in BRAM INIT) (post-synthesis stage S2n);
 #                   netlist-sim-i9 does the i9 board top (slow, in ci)
-#   make arch-test  riscv-arch-test RV32I suite on the core (fetches it once)
+#   make arch-test  riscv-arch-test RV32I on the core, M on the golden model
+#   make riscv-tests riscv-tests (rv32ui/um/ua, self-checking) on the golden
+#                   model (fetches them once; #25)
 #   make ci         everything above, including verilate and icebram-check
 #
 # The RV32E MCU on an iCEstick (S4, by hand):
@@ -85,6 +87,9 @@ netlist-sim-i9:
 arch-test:
 	$(MAKE) --no-print-directory -C bench/arch_test run
 
+riscv-tests:
+	$(MAKE) --no-print-directory -C bench/riscv_tests run
+
 # The i9 board simulation takes about 2 minutes (Icarus, UART output).
 board-sim-i9:
 	$(MAKE) --no-print-directory -C designs/mcu_i9 board-sim
@@ -92,7 +97,7 @@ board-sim-i9:
 names:
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p names || exit 1; done
 
-ci: langcheck selftest test arch-test board-sim netlist-sim netlist-sim-i9 board-sim-i9 verilate synth names icebram-check ecpbram-check
+ci: langcheck selftest test arch-test riscv-tests board-sim netlist-sim netlist-sim-i9 board-sim-i9 verilate synth names icebram-check ecpbram-check
 
 mcu:
 	$(MAKE) -C designs/mcu
@@ -122,4 +127,4 @@ clean:
 	dune clean
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p clean; done
 
-.PHONY: versions arch-test board-sim board-sim-i9 netlist-sim netlist-sim-i9 mcu mcu-prog mcu-term i9 i9-prog i9-term ecpbram-check icebram-check all setup langcheck selftest test verilate synth names ci clean
+.PHONY: versions arch-test riscv-tests board-sim board-sim-i9 netlist-sim netlist-sim-i9 mcu mcu-prog mcu-term i9 i9-prog i9-term ecpbram-check icebram-check all setup langcheck selftest test verilate synth names ci clean

@@ -74,6 +74,7 @@ type t =
   ; zicsr : bool
   ; m : bool
   ; a : bool
+  ; zifencei : bool
   ; mutable reservation : int option (* LR.W address *)
   ; regs : int array
   ; mutable pc : int
@@ -97,6 +98,7 @@ let create
   ?(zicsr = false)
   ?(m = false)
   ?(a = false)
+  ?(zifencei = false)
   ?(csr_input = fun _ -> 0)
   ~base
   ~mem_bytes
@@ -106,6 +108,7 @@ let create
   ; zicsr
   ; m
   ; a
+  ; zifencei
   ; reservation = None
   ; regs = Array.make (Isa.num_regs base) 0
   ; pc = 0
@@ -321,7 +324,7 @@ let execute t : (retire, trap) result =
   let seq = mask32 (pc + 4) in
   let jump target = if target land 3 <> 0 then Error (Misaligned_fetch target) else Ok target in
   let* rd_write, mem_write, next_pc =
-    match Isa.decode ~zicsr:t.zicsr ~m:t.m ~a:t.a ~base:t.base insn with
+    match Isa.decode ~zicsr:t.zicsr ~m:t.m ~a:t.a ~zifencei:t.zifencei ~base:t.base insn with
     | Lui { rd; imm } -> Ok (Some (rd, mask32 imm), None, seq)
     | Auipc { rd; imm } -> Ok (Some (rd, mask32 (pc + imm)), None, seq)
     | Jal { rd; offset } ->
@@ -351,7 +354,7 @@ let execute t : (retire, trap) result =
       Ok (None, Some (addr, n, v), seq)
     | Op_imm { op; rd; rs1; imm } -> Ok (Some (rd, alu op (r rs1) (mask32 imm)), None, seq)
     | Op { op; rd; rs1; rs2 } -> Ok (Some (rd, alu op (r rs1) (r rs2)), None, seq)
-    | Fence | Wfi -> Ok (None, None, seq)
+    | Fence | Fence_i | Wfi -> Ok (None, None, seq) (* no caches in the model *)
     | Mret ->
       t.mstatus_mie <- t.mstatus_mpie;
       t.mstatus_mpie <- true;
@@ -425,7 +428,7 @@ let step t : (retire, trap) result =
     let pc = t.pc in
     let insn = if check_access t pc 4 = Ok () then read t pc 4 else 0 in
     let store =
-      match Isa.decode ~zicsr:true ~m:t.m ~a:t.a ~base:t.base insn with
+      match Isa.decode ~zicsr:true ~m:t.m ~a:t.a ~zifencei:t.zifencei ~base:t.base insn with
       | Store _ | Sc _ | Amo _ -> true
       | _ -> false
     in

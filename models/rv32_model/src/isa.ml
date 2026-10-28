@@ -92,6 +92,7 @@ type t =
   | Op_imm of { op : alu; rd : reg; rs1 : reg; imm : int }
   | Op of { op : alu; rd : reg; rs1 : reg; rs2 : reg }
   | Fence
+  | Fence_i (* Zifencei *)
   | Ecall
   | Ebreak
   | Csr of { op : csr_op; rd : reg; src : csr_src; csr : int } (* Zicsr *)
@@ -136,7 +137,7 @@ let imm_j w =
 
 (* [zicsr]: decode the CSR instructions, MRET and WFI (otherwise illegal).
    Whether a CSR address exists is decided by the machine, not here. *)
-let decode ?(zicsr = false) ?(m = false) ?(a = false) ~base word =
+let decode ?(zicsr = false) ?(m = false) ?(a = false) ?(zifencei = false) ~base word =
   let illegal = Illegal word in
   let opcode = bits word ~hi:6 ~lo:0 in
   let rd = bits word ~hi:11 ~lo:7 in
@@ -242,6 +243,7 @@ let decode ?(zicsr = false) ?(m = false) ?(a = false) ~base word =
        | 0b111, 0b0000000 -> op And
        | _ -> illegal, [])
     | 0b0001111 when funct3 = 0 -> Fence, []
+    | 0b0001111 when zifencei && funct3 = 1 -> Fence_i, []
     | 0b1110011 when word = 0x00000073 -> Ecall, []
     | 0b1110011 when word = 0x00100073 -> Ebreak, []
     | 0b1110011 when zicsr && word = 0x30200073 -> Mret, []

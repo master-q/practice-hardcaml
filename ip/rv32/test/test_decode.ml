@@ -23,6 +23,7 @@ let model_class w =
   | Op_imm _ -> "op_imm"
   | Op _ -> "op"
   | Fence -> "fence"
+  | Fence_i -> "fence.i (not in this decoder)"
   | Ecall -> "ecall"
   | Ebreak -> "ebreak"
   | Csr _ -> "csr"
