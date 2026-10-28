@@ -84,6 +84,19 @@ core and the MCU passed lockstep on their first run.
 
 ## Entries
 
+### B-0021: interrupt test firmware broke the MCU bench's typing protocol
+
+- Date: 2026-10-29
+- Project: sw/irq (new firmware)
+- Found at: S1; Catchable at: S1
+- Class: testbench timing or protocol
+- Symptom: the i9 interrupt test printed its self-test line and echoed
+  only the first key ("> I"); the bench never typed the rest.
+- Cause: the MCU bench types the next key only after the previous one is
+  echoed unchanged (B-0006); the new firmware echoed keys upper-cased.
+- Fix: echo as typed and print the upper-cased line on Enter, as sw/echo.
+- Regression: the i9 interrupt test in ip/mcu/test/test_mcu.ml.
+
 ### B-0020: core harness sampled the Fetch flag one cycle late
 
 - Date: 2026-10-29

@@ -4,6 +4,7 @@
 ;   echo_rv32i.bin       Colorlight i9 (designs/mcu_i9): RV32I, 64 KiB
 ;   dhrystone_rv32i.bin  Colorlight i9 benchmark, 500 runs
 ;   dhrystone_sim.bin    same, 50 runs, for the simulation tests
+;   irq_rv32i.bin        Colorlight i9: interrupt and trap test (#3)
 
 (rule
  (targets echo_rv32e.bin echo_rv32e.elf)
@@ -26,7 +27,7 @@
   (glob_files libc/include/*)
   (glob_files dhrystone/*))
  (action
-  (run bash build.sh dhrystone_rv32i.bin rv32i 64 -O2 -Idhrystone -w -std=gnu89
+  (run bash build.sh dhrystone_rv32i.bin rv32i_zicsr 64 -O2 -Idhrystone -w -std=gnu89
    -fno-builtin-printf -DNUMBER_OF_RUNS=500 -- dhrystone/dhrystone_main.c
    dhrystone/dhrystone.c dhrystone/harness.c libc/printf.c libc/string.c)))
 
@@ -39,6 +40,12 @@
   (glob_files libc/include/*)
   (glob_files dhrystone/*))
  (action
-  (run bash build.sh dhrystone_sim.bin rv32i 64 -O2 -Idhrystone -w -std=gnu89
+  (run bash build.sh dhrystone_sim.bin rv32i_zicsr 64 -O2 -Idhrystone -w -std=gnu89
    -fno-builtin-printf -DNUMBER_OF_RUNS=50 -- dhrystone/dhrystone_main.c
    dhrystone/dhrystone.c dhrystone/harness.c libc/printf.c libc/string.c)))
+
+(rule
+ (targets irq_rv32i.bin irq_rv32i.elf)
+ (deps build.sh (glob_files common/*) irq/main.c)
+ (action
+  (run bash build.sh irq_rv32i.bin rv32i_zicsr 64 -Wall -Werror -- irq/main.c)))

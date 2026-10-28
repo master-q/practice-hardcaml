@@ -18,6 +18,30 @@
 #define CYCLE MMIO(0x1000000c)
 #define INSTRET MMIO(0x10000010)
 
+/* Zicsr MCU only (Colorlight i9, Mcu.Config.zicsr; issue #3). */
+#define IRQ_ENABLE MMIO(0x10000014) /* machine external interrupt sources */
+#define IRQ_RX 0x1u                 /* UART_RX_VALID */
+#define IRQ_TX 0x2u                 /* UART_TX_READY */
+#define MSIP MMIO(0x10000018)       /* bit 0: machine software interrupt */
+#define MTIME_LO MMIO(0x10000020)   /* clock cycles since reset, 64 bits */
+#define MTIME_HI MMIO(0x10000024)
+#define MTIMECMP_LO MMIO(0x10000028) /* timer interrupt while MTIME >= MTIMECMP */
+#define MTIMECMP_HI MMIO(0x1000002c)
+
+#define MSTATUS_MIE 0x8u
+#define MIE_MSIE 0x8u
+#define MIE_MTIE 0x80u
+#define MIE_MEIE 0x800u
+
+#define csr_read(csr)                                     \
+  ({                                                      \
+    unsigned int v_;                                      \
+    __asm__ volatile("csrr %0, " #csr : "=r"(v_));        \
+    v_;                                                   \
+  })
+#define csr_write(csr, v) __asm__ volatile("csrw " #csr ", %0" ::"r"(v))
+#define csr_set(csr, v) __asm__ volatile("csrs " #csr ", %0" ::"r"(v))
+
 static inline void uart_putc(char c)
 {
   while (!(UART_STATUS & UART_TX_READY))

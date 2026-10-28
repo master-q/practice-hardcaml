@@ -1,6 +1,7 @@
 /* Measurement hooks for riscv-tests' Dhrystone on the practice-hardcaml MCU.
    setStats(1) is called just before the timed loop, setStats(0) just after
-   it; we record the CYCLE and INSTRET counters and print the difference in
+   it; we record mcycle and minstret (the standard CSRs, on the Zicsr i9
+   build) or else the memory-mapped CYCLE and INSTRET counters, and print the difference in
    a fixed format that the testbench parses:
 
      dhrystone: runs=N cycles=C instret=I
@@ -20,7 +21,11 @@ static unsigned int start_cycle, start_instret;
 
 void setStats(int enable)
 {
+#ifdef __riscv_zicsr
+  unsigned int cycle = csr_read(mcycle), instret = csr_read(minstret);
+#else
   unsigned int cycle = CYCLE, instret = INSTRET;
+#endif
   if (enable) {
     start_cycle = cycle;
     start_instret = instret;

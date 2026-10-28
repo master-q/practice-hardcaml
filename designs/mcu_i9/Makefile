@@ -4,8 +4,11 @@ EXPECT_BRAM := 32
 # 1419-1571 TRELLIS_COMB with the cloud/CI toolchain on 2026-10-28, 1631
 # with the start-up hold and LED logic of #16 (varies
 # with packing; other Yosys/nextpnr releases differ further, B-0015).
+# 2026-10-29, pinned toolchain: 1438 without Zicsr, 2516 with Zicsr,
+# interrupts and the timer (#3), MMIO CYCLE/INSTRET dropped (the CSRs
+# replace them). The LFE5U-45F has 43,848 LUTs.
 # Raise deliberately and note why in HISTORY.md.
-MAX_LC := 1700
+MAX_LC := 2800
 FIRMWARE := sw/dhrystone_rv32i.bin
 # The board simulation runs the 50-run image (the 500-run one takes minutes).
 BOARD_SIM_FIRMWARE := sw/dhrystone_sim.bin

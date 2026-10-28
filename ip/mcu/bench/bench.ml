@@ -13,10 +13,10 @@ let clocks_per_bit = 4
 
 (* Simulation configurations: the boards' ISA and RAM, a fast UART. *)
 let icestick =
-  { Mcu.Config.base = Rv32e; ram_bytes = 4096; clocks_per_bit; counters = false }
+  { Mcu.Config.base = Rv32e; ram_bytes = 4096; clocks_per_bit; counters = false; zicsr = false }
 ;;
 
-let i9 = { Mcu.Config.base = Rv32i; ram_bytes = 65536; clocks_per_bit; counters = true }
+let i9 = { Mcu.Config.base = Rv32i; ram_bytes = 65536; clocks_per_bit; counters = false; zicsr = true }
 let create config scope = Mcu.create config scope
 
 let words_of_image image =
@@ -33,6 +33,7 @@ type result =
   { output : string
   ; leds : int
   ; retired : int
+  ; interrupts : int
   ; cycles : int
   ; trap : int option
   ; mismatch : string option
@@ -65,6 +66,7 @@ let run
   let lockstep =
     Rv32_bench.Lockstep.create
       ~is_io:(fun a -> a land 0x1000_0000 <> 0)
+      ~zicsr:config.zicsr
       ~base:config.base
       ~mem_bytes:config.ram_bytes
       ~program
@@ -83,6 +85,7 @@ let run
   in
   let trap = ref None in
   let cycle = ref 0 in
+  let irq_fetch = ref 0 in
   while !cycle < cycles && Option.is_none !trap && Option.is_none lockstep.mismatch do
     (* Type the next key once the previous one was echoed and the MCU has
        been quiet for a while. *)
@@ -97,13 +100,15 @@ let run
     i.uart_rx := Bits.of_bool (Uart_bench.Uart_line.next line);
     Cyclesim.cycle sim;
     on_cycle !cycle;
+    let irq = Bits.to_int !(o.irq) in
+    if Bits.to_bool !(o.core.fetch) then irq_fetch := irq;
     if Bits.to_bool !(o.core.halted)
     then (
       let code = Bits.to_int !(o.core.trap) in
       Rv32_bench.Lockstep.on_halt lockstep ~trap:code;
       trap := Some code)
     else if Bits.to_bool !(o.core.retire)
-    then Rv32_bench.Lockstep.on_retire lockstep o.core;
+    then Rv32_bench.Lockstep.on_retire ~irq ~irq_fetch:!irq_fetch lockstep o.core;
     (match Uart_bench.Uart_monitor.step monitor (Bits.to_bool !(o.uart_tx)) with
      | Some c ->
        Buffer.add_char output c;
@@ -114,6 +119,7 @@ let run
   { output = Buffer.contents output
   ; leds = Bits.to_int !(o.leds)
   ; retired = lockstep.retired
+  ; interrupts = lockstep.interrupts
   ; cycles = !cycle
   ; trap = !trap
   ; mismatch = lockstep.mismatch

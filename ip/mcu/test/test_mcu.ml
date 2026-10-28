@@ -85,6 +85,18 @@ let%expect_test "i9 configuration: Dhrystone (50 runs), in lockstep" =
     "dhrystone: runs=# cycles=# instret=#\r\ndhrystone: DMIPS/MHz=#.#\r\nMicroseconds for one run through Dhrystone: #\r\nDhrystones per Second:                      #\r\n"
     leds=1 trap=2 retired>0=true
     lockstep: ok
-    runs=50 CPI=4.27
+    runs=50 CPI=4.26
+    |}]
+;;
+
+let%expect_test "i9 configuration: interrupts and traps (timer, software, ecall, UART RX)" =
+  let r = run Bench.i9 ~image:(firmware "irq_rv32i.bin") ~input:"irq\r" ~cycles:200_000 in
+  print_result r;
+  printf "interrupts>10=%b\n" (r.interrupts > 10);
+  [%expect {|
+    "irq: timer ok, software ok, ecall ok\r\n> irq\r\nIRQ\r\n> "
+    leds=1 trap=none retired>0=true
+    lockstep: ok
+    interrupts>10=true
     |}]
 ;;

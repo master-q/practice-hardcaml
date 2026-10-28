@@ -20,6 +20,7 @@ let config =
   ; ram_bytes = 4096
   ; clocks_per_bit = clock_hz / 115_200
   ; counters = false
+  ; zicsr = false
   }
 ;;
 

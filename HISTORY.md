@@ -3,6 +3,27 @@
 A dated log of the project, newest entry first. Each entry records what was
 done, what was learned, and the numbers measured that day.
 
+## 2026-10-29: Zicsr, traps and interrupts in hardware (#3)
+
+- The maintainer froze the iCEstick (full); new features go to the ECP5
+  only. The board check of the 21.8 ms start-up hold (B-0017) passed.
+- Decoder: CSR, MRET, WFI behind ~zicsr; 362k words per configuration
+  agree with the model.
+- Core ~zicsr: M-mode CSRs as in rv32_model, mcycle/minstret, trap entry
+  once mtvec <> 0, MRET, interrupts in Fetch (external > software >
+  timer). Lockstep takes mip and the counters from the hardware, injects
+  interrupts where the core took them and checks priority and missed
+  interrupts (negative tests). Random programs with CSR accesses and
+  random interrupts: 600 programs, 87k instructions, 2696 interrupts, 0
+  failures.
+- MCU Config.zicsr (i9): IRQ_ENABLE (UART RX/TX -> MEIP), MSIP, 64-bit
+  MTIME/MTIMECMP (MTIP); sw/irq exercises every source in lockstep;
+  Dhrystone reads mcycle/minstret (CPI 4.26). MMIO CYCLE/INSTRET dropped
+  on the i9.
+- Area (pinned toolchain): i9 1438 -> 2516 TRELLIS_COMB (budget 2800),
+  60.3 MHz; iCEstick 1122 LCs (Zicsr off).
+- Defects: B-0019 (S0), B-0020, B-0021 (S1).
+
 ## 2026-10-29: pinned toolchain (#11, #12)
 
 - toolchain/: OSS CAD Suite 2026-10-28 (Yosys 0.70+255, nextpnr 0.11.1+83,

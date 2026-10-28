@@ -72,6 +72,11 @@ evidence; `docs/WORKFLOW.md` describes the method.
 - **Toolchain-dependent numbers** (instruction counts, LC counts, Fmax)
   are compared only within one toolchain; `scripts/versions.sh` records
   it (B-0013, B-0015).
+- **The iCEstick design is frozen** (maintainer, 2026-10-29): the
+  iCE40HX1K is full (about 1120 of 1280 LCs). New features go into the
+  ECP5 configuration only (`designs/mcu_i9`, `Mcu.Config` flags such as
+  `zicsr`); shared IP keeps them behind a parameter so the iCEstick build
+  stays as it is and keeps passing `make`.
 - **Keep `HISTORY.md` up to date.** Add a dated entry with the gist of each
   working session: what was done, what was learned, measured numbers.
   Newest entry first. Do not turn `README.md` into a log.

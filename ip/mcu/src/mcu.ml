@@ -10,6 +10,13 @@
      0x1000_000c  CYCLE         clock cycles since reset (32 bits, wraps)
      0x1000_0010  INSTRET       instructions retired since reset (32 bits)
                                 (both read 0 unless Config.counters)
+   With Config.zicsr (issue #3; the core has CSRs and interrupts):
+     0x1000_0014  IRQ_ENABLE    bit 0 rx_valid, bit 1 tx_ready -> machine
+                                external interrupt (level)
+     0x1000_0018  MSIP          bit 0: machine software interrupt
+     0x1000_0020  MTIME         lo, +4 hi: clock cycles since reset (64 bits)
+     0x1000_0028  MTIMECMP      lo, +4 hi: timer interrupt while
+                                MTIME >= MTIMECMP (all ones after reset)
    Any address with bit 28 set is I/O. Reads have one cycle of latency,
    matching the core's bus.
 
@@ -30,6 +37,7 @@ module Config = struct
     ; ram_bytes : int (* power of two *)
     ; clocks_per_bit : int (* clock frequency / UART baud rate *)
     ; counters : bool (* CYCLE and INSTRET; read as 0 when false *)
+    ; zicsr : bool (* CSRs, traps, interrupts and their sources (#3) *)
     }
 
   let ram_words t = t.ram_bytes / 4
@@ -55,6 +63,7 @@ module O = struct
     { uart_tx : 'a
     ; leds : 'a [@bits 8]
     ; core : 'a Rv32.Core.O.t [@rtlprefix "core_"]
+    ; irq : 'a [@bits 3] (* the core's irq input, for the lockstep bench *)
     }
   [@@deriving hardcaml]
 end
@@ -71,16 +80,18 @@ let create (config : Config.t) scope (i : _ I.t) =
   let%hw clear = (por_count <>:. 15) |: i.clear in
   let spec = Reg_spec.create ~clock:i.clock ~clear () in
   let%hw mem_rdata = wire 32 in
+  let%hw irq = wire 3 in
   let core =
     Rv32.Core.hierarchical
+      ~zicsr:config.zicsr
       ~base:config.base
       scope
-      { Rv32.Core.I.clock = i.clock; clear; mem_rdata; irq = zero 3 }
+      { Rv32.Core.I.clock = i.clock; clear; mem_rdata; irq }
   in
   let addr = core.mem_addr in
   let%hw is_io = addr.:(28) in
   let%hw word = addr.:[word_bits + 1, 2] in
-  let%hw io_reg = addr.:[4, 2] in
+  let%hw io_reg = if config.zicsr then addr.:[5, 2] else addr.:[4, 2] in
   let load_addr = i.load_addr.:[word_bits - 1, 0] in
   (* RAM *)
   let lanes =
@@ -142,16 +153,41 @@ let create (config : Config.t) scope (i : _ I.t) =
     else zero 32, zero 32
   in
   let%hw status = rx_valid @: tx.ready in
-  let%hw io_rdata =
-    reg
-      spec
-      (mux
-         io_reg
-         [ uresize rx_byte 32; uresize status 32; uresize leds 32; cycle; instret ])
+  let base_regs = [ uresize rx_byte 32; uresize status 32; uresize leds 32; cycle; instret ] in
+  let io_regs =
+    if not config.zicsr
+    then (
+      irq <== zero 3;
+      base_regs)
+    else (
+      let%hw irq_enable = reg spec ~enable:(io_write 5) core.mem_wdata.:[1, 0] in
+      let%hw msip = reg spec ~enable:(io_write 6) core.mem_wdata.:(0) in
+      let%hw mtime = reg_fb spec ~width:64 ~f:(fun t -> t +:. 1) in
+      let half k v = mux2 (io_write k) core.mem_wdata v in
+      let%hw mtimecmp =
+        (* Cleared to all ones, so no timer interrupt until it is set. *)
+        reg_fb
+          (Reg_spec.override spec ~clear_to:(ones 64))
+          ~width:64
+          ~f:(fun c -> half 11 c.:[63, 32] @: half 10 c.:[31, 0])
+      in
+      let%hw mtip = mtime >=: mtimecmp in
+      let%hw meip = (rx_valid &: irq_enable.:(0)) |: (tx.ready &: irq_enable.:(1)) in
+      irq <== meip @: mtip @: msip;
+      base_regs
+      @ [ uresize irq_enable 32
+        ; uresize msip 32
+        ; zero 32
+        ; mtime.:[31, 0]
+        ; mtime.:[63, 32]
+        ; mtimecmp.:[31, 0]
+        ; mtimecmp.:[63, 32]
+        ])
   in
+  let%hw io_rdata = reg spec (mux io_reg io_regs) in
   let%hw read_io = reg spec (core.mem_read &: is_io) in
   mem_rdata <== mux2 read_io io_rdata ram_rdata;
-  { O.uart_tx = tx.tx; leds; core }
+  { O.uart_tx = tx.tx; leds; core; irq }
 ;;
 
 let hierarchical config scope =

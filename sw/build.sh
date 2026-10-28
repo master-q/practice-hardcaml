@@ -3,7 +3,7 @@
 #
 #   build.sh OUT.bin ARCH RAM_KIB [CFLAGS...] -- SOURCES...
 #
-# ARCH is rv32e or rv32i; RAM_KIB selects common/link_<RAM_KIB>k.ld.
+# ARCH is rv32e, rv32i or rv32i_zicsr; RAM_KIB selects common/link_<RAM_KIB>k.ld.
 set -euo pipefail
 out=$1 arch=$2 ram=$3
 shift 3
@@ -13,6 +13,7 @@ shift
 case $arch in
   rv32e) march=rv32e mabi=ilp32e ;;
   rv32i) march=rv32i mabi=ilp32 ;;
+  rv32i_zicsr) march=rv32i_zicsr mabi=ilp32 ;;
   *) echo "unknown arch $arch" >&2; exit 2 ;;
 esac
 elf=${out%.bin}.elf

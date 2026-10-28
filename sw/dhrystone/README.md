@@ -7,9 +7,10 @@ Weicker's Dhrystone 2.x with a RISC-V timing harness. The only change here:
 `NUMBER_OF_RUNS` in `dhrystone.h` can be overridden with `-D`.
 
 `util.h` and `harness.c` are ours: the riscv-tests timing macros read the
-MCU's memory-mapped CYCLE counter instead of the `mcycle` CSR (the core has
-no CSRs yet, see issue #3), and `setStats` records cycles and retired
-instructions around the timed loop and prints them.
+`mcycle` CSR on the Zicsr build (the i9, issue #3; `-march=rv32i_zicsr`)
+and the MCU's memory-mapped CYCLE counter otherwise, and `setStats`
+records cycles and retired instructions around the timed loop and prints
+them.
 
 The riscv-ice40 survey uses a different harness around the same benchmark
 body, so DMIPS/MHz is comparable; absolute run counts and printed text are
