@@ -13,11 +13,12 @@ export OPAMYES=1
 SUDO=""
 if [ "$(id -u)" -ne 0 ]; then SUDO=sudo; fi
 
-pkgs="build-essential m4 pkg-config libffi-dev libgmp-dev libssl-dev zlib1g-dev opam bubblewrap yosys nextpnr-ice40 fpga-icestorm fpga-icestorm-chipdb iverilog verilator jq z3 gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf"
+pkgs="build-essential m4 pkg-config libffi-dev libgmp-dev libssl-dev zlib1g-dev opam bubblewrap yosys nextpnr-ice40 fpga-icestorm fpga-icestorm-chipdb nextpnr-ecp5 fpga-trellis openfpgaloader iverilog verilator jq z3 gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf"
 if ! command -v yosys >/dev/null || ! command -v nextpnr-ice40 >/dev/null \
    || ! command -v icepack >/dev/null || ! command -v opam >/dev/null \
    || ! command -v verilator >/dev/null || ! command -v z3 >/dev/null \
-   || ! command -v riscv64-unknown-elf-gcc >/dev/null; then
+   || ! command -v riscv64-unknown-elf-gcc >/dev/null \
+   || ! command -v nextpnr-ecp5 >/dev/null || ! command -v ecpbram >/dev/null; then
   $SUDO apt-get update -qq
   DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y -qq $pkgs
 fi

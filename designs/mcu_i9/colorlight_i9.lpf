@@ -1,0 +1,14 @@
+# Colorlight i9 v7.2 with the Muse Lab ext board.
+# 25 MHz oscillator, UART through the ext board's DAPLink (CDC serial),
+# LED D2 (active low).
+LOCATE COMP "clock" SITE "P3";
+IOBUF PORT "clock" IO_TYPE=LVCMOS33;
+FREQUENCY PORT "clock" 25 MHZ;
+
+LOCATE COMP "uart_tx" SITE "J17";
+IOBUF PORT "uart_tx" IO_TYPE=LVCMOS33;
+LOCATE COMP "uart_rx" SITE "H18";
+IOBUF PORT "uart_rx" IO_TYPE=LVCMOS33;
+
+LOCATE COMP "led_n" SITE "L2";
+IOBUF PORT "led_n" IO_TYPE=LVCMOS33 DRIVE=4;

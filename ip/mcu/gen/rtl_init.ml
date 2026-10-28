@@ -1,6 +1,7 @@
 (* Command-line generator shared by the MCU board designs.
 
-     main.exe verilog FIRMWARE.bin      Verilog with the firmware in the RAM
+     main.exe verilog FIRMWARE.bin DIR  Verilog with the firmware in the RAM;
+                                        writes DIR/firmware_bN.hex
      main.exe placeholder DIR           Verilog with random RAM contents;
                                         writes DIR/placeholder_bN.hex
      main.exe hex FIRMWARE.bin DIR      writes DIR/firmware_bN.hex
@@ -12,8 +13,10 @@
    block RAMs unambiguously.
 
    HardCaml v0.17 memories have no initial-value support, so after printing
-   the RTL we insert an `initial` block after each RAM lane's declaration;
-   the synthesis tool turns it into the block RAMs' initial contents. *)
+   the RTL we insert `initial $readmemh(...)` after each RAM lane's
+   declaration, reading the hex file written next to the Verilog (an
+   absolute path, so it does not depend on Yosys's working directory). One
+   assignment per byte instead made Yosys take 5.5 minutes for 64 KiB. *)
 open! Base
 open! Hardcaml
 open Stdio
@@ -49,7 +52,7 @@ let write_hex ~dir ~prefix contents =
   done
 ;;
 
-let print_verilog (config : Mcu.Config.t) ~circuit contents =
+let print_verilog (config : Mcu.Config.t) ~circuit ~dir ~prefix =
   let scope = Scope.create ~flatten_design:false () in
   let circuit = circuit scope in
   let buffer = Buffer.create 65536 in
@@ -59,6 +62,7 @@ let print_verilog (config : Mcu.Config.t) ~circuit contents =
     Verilog
     circuit;
   let words = Mcu.Config.ram_words config in
+  let dir = Filename_unix.realpath dir in
   let inserted = ref 0 in
   String.split_lines (Buffer.contents buffer)
   |> List.iter ~f:(fun line ->
@@ -69,10 +73,7 @@ let print_verilog (config : Mcu.Config.t) ~circuit contents =
       if String.equal (String.strip line) decl
       then (
         Int.incr inserted;
-        print_endline "    initial begin";
-        Array.iteri (contents lane) ~f:(fun w b ->
-          printf "        %s[%d] = 8'h%02x;\n" name w b);
-        print_endline "    end")
+        printf "    initial $readmemh(\"%s/%s_b%d.hex\", %s);\n" dir prefix lane name)
     done);
   if !inserted <> lanes
   then Printf.failwithf "expected %d RAM lane declarations, found %d" lanes !inserted ()
@@ -81,14 +82,15 @@ let print_verilog (config : Mcu.Config.t) ~circuit contents =
 (* [circuit scope] builds the board's top-level circuit. *)
 let main config ~circuit =
   match Sys.get_argv () |> Array.to_list |> List.tl_exn with
-  | [ "verilog"; firmware ] ->
-    print_verilog config ~circuit (firmware_contents config firmware)
+  | [ "verilog"; firmware; dir ] ->
+    write_hex ~dir ~prefix:"firmware" (firmware_contents config firmware);
+    print_verilog config ~circuit ~dir ~prefix:"firmware"
   | [ "placeholder"; dir ] ->
     write_hex ~dir ~prefix:"placeholder" (placeholder_contents config);
-    print_verilog config ~circuit (placeholder_contents config)
+    print_verilog config ~circuit ~dir ~prefix:"placeholder"
   | [ "hex"; firmware; dir ] ->
     write_hex ~dir ~prefix:"firmware" (firmware_contents config firmware)
   | _ ->
-    eprintf "usage: main.exe (verilog FW | placeholder DIR | hex FW DIR)\n";
+    eprintf "usage: main.exe (verilog FW DIR | placeholder DIR | hex FW DIR)\n";
     Stdlib.exit 2
 ;;

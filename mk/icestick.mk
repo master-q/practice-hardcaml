@@ -72,7 +72,8 @@ $(BUILD)/top.asc: $(BUILD)/placeholder.asc $(BUILD)/firmware_b0.hex
 # Strong check (make ci): the swapped bitstream must be byte-identical to
 # one synthesised directly with the firmware in the RAM.
 icebram-check: $(BUILD)/top.asc $(FW_FILE)
-	$(EXE) verilog $(FW_FILE) > $(BUILD)/direct.v
+	mkdir -p $(BUILD)/direct
+	$(EXE) verilog $(FW_FILE) $(BUILD)/direct > $(BUILD)/direct.v
 	yosys -q -p 'synth_ice40 -top top -json $(BUILD)/direct.json' $(BUILD)/direct.v
 	nextpnr-ice40 -q --hx1k --package tq144 --freq 12 \
 	  --json $(BUILD)/direct.json --pcf icestick.pcf --asc $(BUILD)/direct.asc
