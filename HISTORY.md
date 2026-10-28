@@ -3,6 +3,16 @@
 A dated log of the project, newest entry first. Each entry records what was
 done, what was learned, and the numbers measured that day.
 
+## 2026-10-28 (late night): B-0014 root cause by ablation
+
+- On the board: EXPERIMENT=no-hold fails (no output), EXPERIMENT=
+  no-regfile-init works. The cause is starting the core 1.25 us after
+  configuration; the 22 ms reset hold fixes it. S4-only: board-sim passes
+  without the hold.
+- Lesson recorded in AGENTS.md: change one thing per board experiment or
+  provide an ablation switch; here the switch made a second round trip to
+  the board enough.
+
 ## 2026-10-28 (night): board works; audit of all defects
 
 - The diagnostic build (80f33cd) works on the iCEstick: banner, echo and

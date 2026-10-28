@@ -4,8 +4,9 @@
 
    Board bring-up aids (BUGS.md B-0014):
    - The core is held in reset for 2^18 cycles (about 22 ms) after
-     configuration, so block RAM is not read in the first microseconds
-     after configuration, when iCE40 BRAM reads are not guaranteed.
+     configuration. Without it the core fetched from block RAM 15 cycles
+     after configuration and the board stayed silent (B-0014, confirmed
+     on the board with EXPERIMENT=no-hold).
    - LEDs: D5 (green, centre) blinks from a free-running counter,
      independent of the CPU, proving the bitstream and clock run; D4 lights
      when the core has halted (trap); D1..D3 show LEDS bits 2..0 written by

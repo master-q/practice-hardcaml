@@ -36,12 +36,15 @@ Root-cause categories, independent of the stage that found them:
 Findings for the project's question:
 - Every RTL-level functional property was settled by the cheap stages;
   no functional RTL defect has reached S2 or S4.
-- The only defect seen first on hardware (B-0014) is about power-up and
-  initial state. Cyclesim is two-state and starts every register and
-  memory at 0, which is exactly what hides this class. A four-state,
-  pin-level simulation of the generated Verilog (`make board-sim`) closes
-  part of the gap (uninitialised memories, registers without reset); the
-  behaviour of block RAM right after configuration remains S4-only.
+- The only defect seen first on hardware (B-0014) is about start-up: the
+  core read block RAM 1.25 us after configuration (confirmed by
+  ablation). No simulation stage can see it: Cyclesim, Verilator and the
+  four-state board simulation all model a chip that is ready at time 0.
+  It is the first data point of an S4-only class, and it is not an RTL
+  logic error but an assumption about the silicon. The four-state board
+  simulation (`make board-sim`) still closes the neighbouring gap
+  (uninitialised memories, registers without reset), which two-state
+  Cyclesim hides by starting everything at 0.
 - Results that depend on the toolchain (instruction counts, LC counts)
   must not be compared across environments; record versions.
 
@@ -116,8 +119,16 @@ core and the MCU passed lockstep on their first run.
 - Project: designs/mcu
 - Found at: S4 (maintainer, first board test)
 - Status: fixed by commit 80f33cd (board confirmed: banner, echo, upper
-  case). Root cause: one of two changes made together; the ablation below
-  decides which.
+  case). Root cause decided by ablation on the board (2026-10-28):
+  - EXPERIMENT=no-hold (register file initialised, no reset hold): no
+    output -- the defect reproduces.
+  - EXPERIMENT=no-regfile-init (reset hold, no explicit initialisation):
+    works.
+  So the cause is (A): the core started fetching from block RAM about
+  1.25 us (15 cycles) after configuration. The most likely mechanism is
+  that iCE40 block RAM is not readable that early after configuration;
+  the experiment shows only that waiting fixes it, not which part of the
+  chip needs the time.
 - Symptom: after `make mcu-prog`, `make mcu-term` showed nothing and typed
   keys were not echoed. `designs/hello` (no CPU, no RAM) worked on the
   same board, port and pins.
@@ -137,9 +148,12 @@ core and the MCU passed lockstep on their first run.
 - Ablation (on the board, one flash each):
   `make -C designs/mcu clean && EXPERIMENT=no-hold make mcu-prog` and
   `make -C designs/mcu clean && EXPERIMENT=no-regfile-init make mcu-prog`.
-- Class: reset/init (both candidates).
-- Regression: `make board-sim` for (B); the reset-hold rule in AGENTS.md
-  for (A).
+- Found at: S4; Catchable at: S4 only. No simulator models the chip right
+  after configuration; `make board-sim` passes with EXPERIMENT=no-hold.
+- Class: reset/init (silicon start-up timing).
+- Regression: the reset-hold rule in AGENTS.md; `EXPERIMENT=no-hold`
+  remains available to re-check on new boards or toolchains. (B) was not
+  the cause, but its fix stays because it makes board-sim honest.
 
 ### B-0013: MCU expect tests depended on the cross compiler's version
 
