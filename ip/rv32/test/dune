@@ -1,6 +1,8 @@
 (library
  (name rv32_test)
- (inline_tests)
+ (inline_tests
+  ; re-run when a different z3 is on PATH (scripts/with-toolchain.sh)
+  (deps %{bin:z3}))
  (libraries rv32 rv32_bench rv32_model hardcaml hardcaml_verify)
  (preprocess
   (pps ppx_jane ppx_expect)))

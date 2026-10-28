@@ -1,5 +1,5 @@
 ; Firmware for the MCU designs, built with the RISC-V cross compiler
-; (riscv64-unknown-elf-gcc, see .devcontainer/devcontainer.json).
+; (riscv-none-elf-gcc, pinned in toolchain/riscv-gcc.conf).
 ;   echo_rv32e.bin       iCEstick (designs/mcu): RV32E, 4 KiB
 ;   echo_rv32i.bin       Colorlight i9 (designs/mcu_i9): RV32I, 64 KiB
 ;   dhrystone_rv32i.bin  Colorlight i9 benchmark, 500 runs

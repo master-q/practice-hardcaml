@@ -4,6 +4,14 @@ on:
   push:
   pull_request:
 
+# The toolchain is pinned in toolchain/ and installed by scripts/toolchain.sh
+# under ~/.practice-hardcaml (issues #11, #12). Each part is cached under a
+# key derived from its pin, so a pin change downloads or rebuilds only that
+# part; the caches are saved right after installation, even if tests fail.
+env:
+  PRACTICE_HARDCAML_HOME: /home/runner/.practice-hardcaml
+  DUNE_CACHE: enabled
+
 jobs:
   ci:
     runs-on: ubuntu-24.04
@@ -22,24 +30,76 @@ jobs:
             echo "ERROR: non-ASCII characters in commit messages"; exit 1
           fi
 
-      - name: Install FPGA tools
+      - name: System packages (no EDA tools; those are pinned)
         run: |
           sudo apt-get update
-          sudo apt-get install -y yosys nextpnr-ice40 fpga-icestorm \
-            fpga-icestorm-chipdb nextpnr-ecp5 fpga-trellis iverilog verilator z3 gcc-riscv64-unknown-elf \
-            binutils-riscv64-unknown-elf libgmp-dev libffi-dev pkg-config
+          sudo apt-get install -y opam libgmp-dev libffi-dev pkg-config
 
-      - uses: ocaml/setup-ocaml@v3
+      - name: Cache keys
+        id: keys
+        run: scripts/toolchain.sh key >> "$GITHUB_OUTPUT"
+
+      - name: Restore OSS CAD Suite
+        id: cad
+        uses: actions/cache/restore@v4
         with:
-          ocaml-compiler: 5.3.0
+          path: ${{ env.PRACTICE_HARDCAML_HOME }}/toolchain/oss-cad-suite-*
+          key: ${{ runner.os }}-${{ steps.keys.outputs.cad }}
 
-      - name: Install OCaml packages
-        run: >
-          opam install -y dune hardcaml ppx_hardcaml hardcaml_waveterm
-          hardcaml_verilator hardcaml_verify hardcaml_of_verilog ppx_jane ppx_expect
+      - name: Restore RISC-V GCC
+        id: gcc
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.PRACTICE_HARDCAML_HOME }}/toolchain/riscv-gcc-*
+          key: ${{ runner.os }}-${{ steps.keys.outputs.gcc }}
 
-      - name: Tool versions
-        run: opam exec -- scripts/versions.sh
+      - name: Restore opam switch
+        id: opam
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.PRACTICE_HARDCAML_HOME }}/opam
+          key: ${{ runner.os }}-${{ steps.keys.outputs.opam }}
+
+      - name: Install the pinned toolchain (no-op when restored)
+        run: scripts/toolchain.sh install
+
+      - name: Save OSS CAD Suite
+        if: steps.cad.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.PRACTICE_HARDCAML_HOME }}/toolchain/oss-cad-suite-*
+          key: ${{ runner.os }}-${{ steps.keys.outputs.cad }}
+
+      - name: Save RISC-V GCC
+        if: steps.gcc.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.PRACTICE_HARDCAML_HOME }}/toolchain/riscv-gcc-*
+          key: ${{ runner.os }}-${{ steps.keys.outputs.gcc }}
+
+      - name: Save opam switch
+        if: steps.opam.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.PRACTICE_HARDCAML_HOME }}/opam
+          key: ${{ runner.os }}-${{ steps.keys.outputs.opam }}
+
+      - name: Dune cache and riscv-arch-test sources
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/dune
+            bench/arch_test/build/src
+          key: ${{ runner.os }}-build-${{ steps.keys.outputs.opam }}-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-build-${{ steps.keys.outputs.opam }}-
+
+      - name: Toolchain matches the pins
+        run: |
+          eval "$(scripts/toolchain.sh env)"
+          scripts/toolchain.sh check
+          scripts/versions.sh
 
       - name: Test ladder (S0-S3)
-        run: opam exec -- make ci
+        run: |
+          eval "$(scripts/toolchain.sh env)"
+          make ci

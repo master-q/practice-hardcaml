@@ -3,6 +3,24 @@
 A dated log of the project, newest entry first. Each entry records what was
 done, what was learned, and the numbers measured that day.
 
+## 2026-10-29: pinned toolchain (#11, #12)
+
+- toolchain/: OSS CAD Suite 2026-10-28 (Yosys 0.70+255, nextpnr 0.11.1+83,
+  Icarus 14 devel, Verilator 5.053 devel, z3 4.15.5), xPack
+  riscv-none-elf-gcc 15.2.0-1 (multilibs rv32e, rv32i, rv32im), and the
+  127 opam packages (hardcaml v0.17.1) with exact versions.
+- scripts/toolchain.sh installs them under ~/.practice-hardcaml (bind mount
+  in the devcontainer, actions/cache in CI keyed by each pin, the same
+  script in cloud sessions); `check` fails on unpinned tools (selftest).
+  apt no longer installs EDA tools or the cross compiler.
+- scripts/with-toolchain.sh DATE|pinned|system runs any command with
+  another OSS CAD Suite, building into build-<toolchain>/, to tell tool
+  defects from ours.
+- New reference numbers (pinned toolchain): iCEstick MCU 1143 LCs (1110 on
+  Yosys 0.33), 46.0 MHz; hello 115 LCs (113); i9 58.4 MHz; Dhrystone CPI
+  4.27 (4.25 with gcc 13). B-0018: the netlist reader had to skip Yosys
+  0.70's $scopeinfo cells.
+
 ## 2026-10-29: three-stage simulation survey (#19), post-synthesis stage (#20)
 
 - Survey of the article on RTL / post-synthesis / post-route simulation:

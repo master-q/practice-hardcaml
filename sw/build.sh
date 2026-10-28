@@ -16,7 +16,7 @@ case $arch in
   *) echo "unknown arch $arch" >&2; exit 2 ;;
 esac
 elf=${out%.bin}.elf
-riscv64-unknown-elf-gcc -march=$march -mabi=$mabi -Os -ffreestanding -nostdlib \
+riscv-none-elf-gcc -march=$march -mabi=$mabi -Os -ffreestanding -nostdlib \
   -mno-relax -Wl,--no-warn-rwx-segments -Icommon -Ilibc/include \
   -Lcommon -T common/link_${ram}k.ld "${cflags[@]}" -o "$elf" common/crt0.S "$@" -lgcc
-riscv64-unknown-elf-objcopy -O binary "$elf" "$out"
+riscv-none-elf-objcopy -O binary "$elf" "$out"

@@ -51,4 +51,7 @@ printf '%s' '{"tool_name":"Bash","tool_input":{"command":"gh issue create --titl
 printf '%s' '{"tool_name":"Bash","tool_input":{"command":"echo \u5272"}}' \
   | $policy > /dev/null || fail "github policy blocked an unrelated command"
 
+# The toolchain check must reject tools that are not the pinned ones.
+PATH=/usr/bin:/bin ./toolchain.sh check > /dev/null 2>&1 && fail "toolchain check accepted an unpinned PATH"
+
 echo "OK: check self-tests"

@@ -1,6 +1,8 @@
 (library
  (name netlist_sim_test)
- (inline_tests)
+ (inline_tests
+  ; re-run when a different Yosys is on PATH (scripts/with-toolchain.sh)
+  (deps %{bin:yosys}))
  (libraries netlist_sim hardcaml stdio)
  (preprocess
   (pps ppx_hardcaml ppx_jane ppx_expect)))

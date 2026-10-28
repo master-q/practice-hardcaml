@@ -154,6 +154,10 @@ let create_fn ?(inits = ref []) (m : Netlist.Module.t) (inputs : (string * Signa
         match b with
         | Bit.Index _ -> drive b rdata.:(k)
         | _ -> ())
+    | "$scopeinfo" ->
+      (* Newer Yosys (0.70; not 0.33) records the flattened hierarchy here;
+         they have no logic (B-0018). *)
+      ()
     | t -> Ice40_cells.unsupported "cell %s" t);
   (* Undriven nets (unused cell outputs are fine; read-but-undriven is not). *)
   List.map m.outputs ~f:(fun p -> p.name, concat_lsb (List.map p.value ~f:net))

@@ -85,6 +85,6 @@ let%expect_test "i9 configuration: Dhrystone (50 runs), in lockstep" =
     "dhrystone: runs=# cycles=# instret=#\r\ndhrystone: DMIPS/MHz=#.#\r\nMicroseconds for one run through Dhrystone: #\r\nDhrystones per Second:                      #\r\n"
     leds=1 trap=2 retired>0=true
     lockstep: ok
-    runs=50 CPI=4.25
+    runs=50 CPI=4.27
     |}]
 ;;

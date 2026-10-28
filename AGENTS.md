@@ -120,9 +120,36 @@ with placeholder RAM contents and `icebram` swaps the firmware in
 
 ## Environment
 
-Local: `.devcontainer/devcontainer.json`. Claude Code cloud sessions:
-`.claude/hooks/session-start.sh` installs the same tools. Keep the two in
-sync whenever a tool or opam package is added.
+The toolchain is pinned (issues #11, #12) and the same everywhere:
+
+| Pin | File |
+|-----|------|
+| OSS CAD Suite release (Yosys, nextpnr, icestorm, trellis, Icarus, Verilator, z3, openFPGALoader) | `toolchain/oss-cad-suite.conf` |
+| RISC-V GCC (xPack `riscv-none-elf-gcc`) | `toolchain/riscv-gcc.conf` |
+| opam packages, with all their dependencies | `toolchain/opam-packages.txt` |
+
+`scripts/toolchain.sh install` downloads, verifies and unpacks them under
+`~/.practice-hardcaml` (`PRACTICE_HARDCAML_HOME`); `eval "$(scripts/toolchain.sh env)"`
+puts them on PATH; `scripts/toolchain.sh check` fails on anything else.
+The devcontainer bind-mounts `~/.practice-hardcaml` from the host, so the
+download happens once; CI caches each part under a key derived from its
+pin (`.github/workflows/ci.yml`); Claude Code cloud sessions run the same
+script (`.claude/hooks/session-start.sh`). apt provides only tools that do
+not affect results. Add a tool or opam package in `toolchain/` and the
+script, never in one environment only.
+
+Toolchain triage: when a result looks wrong and the cause could be a tool,
+rerun with another release before debugging our sources:
+
+    scripts/with-toolchain.sh 2026-09-01 make -C designs/mcu   # older/newer OSS CAD Suite
+    scripts/with-toolchain.sh system make -C designs/mcu       # distribution tools (if installed)
+
+Builds go to `build-<toolchain>/`, next to the pinned `build/`, for
+comparison. If the behaviour follows the toolchain, it is a tool defect
+(record it in BUGS.md as such, with both versions); if it follows our
+sources, it is ours. Moving the pin is a deliberate commit: change
+`toolchain/oss-cad-suite.conf` (`scripts/toolchain.sh sha256 DATE` prints
+the checksum), run `make ci`, record changed numbers in HISTORY.md.
 
 Toolchain notes:
 - HardCaml v0.17: `select s hi lo` takes positional arguments; wires are
@@ -134,7 +161,7 @@ Toolchain notes:
 - hardcaml_waveterm draws Unicode boxes; print waveforms with
   `Testlib.Ascii_wave.print` to stay ASCII.
 - `Hardcaml_verify.Sec` calls the `z3` binary.
-- Firmware: `riscv64-unknown-elf-gcc` with `-march=rv32e -mabi=ilp32e` (iCEstick)
+- Firmware: `riscv-none-elf-gcc` with `-march=rv32e -mabi=ilp32e` (iCEstick)
   or `-march=rv32i -mabi=ilp32` (i9), see `sw/build.sh` and `sw/dune`.
 - Memory initial contents: emit `$readmemh` (ip/mcu/gen), never one
   assignment per word: Yosys took 5.5 minutes for 64 KiB that way.

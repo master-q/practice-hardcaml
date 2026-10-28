@@ -84,6 +84,23 @@ core and the MCU passed lockstep on their first run.
 
 ## Entries
 
+### B-0018: netlist reader rejected Yosys 0.70's $scopeinfo cells
+
+- Date: 2026-10-29
+- Project: testlib/netlist
+- Found at: S2n; Catchable at: S2n
+- Class: our own checks (assumption about a tool's output)
+- Symptom: after moving to the pinned OSS CAD Suite (Yosys 0.70), the
+  board-level netlist simulation stopped with "Unsupported cell
+  $scopeinfo". The MCU-level run, from a flattened HardCaml circuit, was
+  not affected.
+- Cause: newer Yosys keeps the flattened module hierarchy as `$scopeinfo`
+  cells; Yosys 0.33 did not emit them. The reader rejects every unknown
+  cell on purpose, so it failed loudly instead of mis-simulating.
+- Fix: skip `$scopeinfo` (no logic).
+- Regression: `make netlist-sim` runs the hierarchical board top on the
+  pinned Yosys.
+
 ### B-0017: start-up hold was half the documented length
 
 - Date: 2026-10-29

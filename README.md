@@ -24,7 +24,7 @@ project log.
 | [ip/mcu](ip/mcu/) | The MCU (core + RAM + UART + LEDs + counters), shared by both boards | S1, S2 |
 | [bench/ref_cores](bench/ref_cores/) | Area and Dhrystone of reference cores ([docs/BENCHMARKS.md](docs/BENCHMARKS.md)) | -- |
 | [models/rv32_model](models/rv32_model/) | RV32E golden model and assembler | tests |
-| [sw](sw/) | MCU firmware (C, built with riscv64-unknown-elf-gcc) | -- |
+| [sw](sw/) | MCU firmware (C, built with riscv-none-elf-gcc) | -- |
 
 No design has been run on a board yet (S4).
 

@@ -15,7 +15,7 @@
 #   make clean
 
 ROOT     := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
-BUILD    := build
+BUILD    ?= build
 EXE      := $(ROOT)/_build/default/$(PROJECT)/bin/main.exe
 FW_FILE  := $(if $(FIRMWARE),$(ROOT)/_build/default/$(FIRMWARE))
 HWSRCS   := $(shell find src bin $(ROOT)/ip $(ROOT)/models -name '*.ml' -o -name dune 2>/dev/null)
