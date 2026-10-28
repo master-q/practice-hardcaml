@@ -3,6 +3,25 @@
 A dated log of the project, newest entry first. Each entry records what was
 done, what was learned, and the numbers measured that day.
 
+## 2026-10-28 (evening): first board test, no UART output (B-0014, open)
+
+- The maintainer flashed designs/mcu onto the iCEstick: no banner, no echo.
+  First S4 observation of the project.
+- Added `make board-sim`: the exact generated Verilog (board top + MCU,
+  firmware loaded by $readmemh) in Icarus Verilog with a pin-level UART
+  model. It boots, prints the banner and echoes, so the fault is not in
+  the RTL, the firmware or the RAM initialisation as simulated.
+- Four-state simulation exposed two implicit assumptions about silicon:
+  registers without reset start at 0 (modelled in the testbench, since
+  HardCaml v0.17 cannot express initial register values) and the
+  register file starts at 0 (now explicit in the generated Verilog).
+- A first hypothesis (non-zero register file in the bitstream) was checked
+  against the flashed .asc and rejected.
+- Diagnostic build for the next board test: 22 ms reset hold after
+  configuration, LEDs for heartbeat / halted / firmware progress.
+- Expect tests no longer contain compiler-dependent counts (B-0013): the
+  devcontainer's gcc differs from Ubuntu 24.04's.
+
 ## 2026-10-28 (later): RV32I, Colorlight i9 port, Dhrystone and comparison
 
 Direction (maintainer): target the Colorlight i9 v7.2 (ECP5 LFE5U-45F)

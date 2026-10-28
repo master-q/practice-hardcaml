@@ -26,7 +26,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y yosys nextpnr-ice40 fpga-icestorm \
-            fpga-icestorm-chipdb nextpnr-ecp5 fpga-trellis verilator z3 gcc-riscv64-unknown-elf \
+            fpga-icestorm-chipdb nextpnr-ecp5 fpga-trellis iverilog verilator z3 gcc-riscv64-unknown-elf \
             binutils-riscv64-unknown-elf libgmp-dev libffi-dev pkg-config
 
       - uses: ocaml/setup-ocaml@v3

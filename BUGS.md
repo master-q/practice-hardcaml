@@ -40,13 +40,38 @@ category, because they cost iterations just the same.
 | S1 | 6 |
 | S2 | 0 |
 | S3 | 6 |
-| S4 | 0 |
+| S4 | 1 (open) |
 
 By class: testbench 6, toolchain 4, model 1, inference 1, resource 1.
 No functional defect in the hardware itself has been found yet: the rv32e
 core and the MCU passed lockstep on their first run.
 
 ## Entries
+
+### B-0014 (OPEN): no UART output from the MCU on the iCEstick
+
+- Date: 2026-10-28
+- Project: designs/mcu
+- Found at: S4 (maintainer, first board test); Catchable at: unknown yet
+- Class: unknown yet
+- Symptom: after `make mcu-prog`, `make mcu-term` shows nothing; typed
+  keys are not echoed.
+- What simulation says: the same generated Verilog with the firmware in
+  the RAM boots and echoes at pin level in Icarus Verilog
+  (`make board-sim`, added for this bug), so the RTL, the firmware and the
+  RAM initialisation are correct in four-state simulation.
+- Ruled out: the register file's initial contents (both of its BRAMs are
+  all-zero in the flashed bitstream; checked in the .asc).
+- Candidates: block RAM read in the first microseconds after
+  configuration (the core started reading 15 cycles after configuration);
+  wrong tty (`/dev/ttyUSB0` vs `/dev/ttyUSB1`); UART pins; the flashing
+  step.
+- Changes for the next board test: the core is held in reset for about
+  22 ms after configuration; LEDs show a hardware heartbeat (D5), core
+  halted (D4) and firmware progress (D1 = started); the register file is
+  initialised explicitly in the Verilog.
+- Regression: `make board-sim` covers the board top and RAM
+  initialisation; the hardware cause is not identified yet.
 
 ### B-0013: MCU expect tests depended on the cross compiler's version
 

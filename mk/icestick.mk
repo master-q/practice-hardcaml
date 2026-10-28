@@ -96,6 +96,17 @@ $(BUILD)/top.bin: $(BUILD)/top.asc
 resources: $(PNR_ASC)
 	@$(ROOT)/scripts/check_resources.sh $(BUILD)/nextpnr.log $(EXPECT_BRAM) $(MAX_LC)
 
+# Board-level simulation of the exact generated Verilog with the firmware
+# (designs that provide tb_top.v): catches problems in the board top level
+# and in RAM initialisation that the S1/S2 benches, which use the load
+# port, cannot see.
+board-sim: $(FW_FILE) $(EXE)
+	@mkdir -p $(BUILD)/direct
+	$(EXE) verilog $(FW_FILE) $(BUILD)/direct > $(BUILD)/direct.v
+	iverilog -g2012 -o $(BUILD)/board_sim.vvp tb_top.v $(BUILD)/direct.v
+	vvp -n $(BUILD)/board_sim.vvp | tr -d '\r' | tee $(BUILD)/board_sim.log
+	@grep -q '^\[tb\] PASS' $(BUILD)/board_sim.log
+
 test:
 	cd $(ROOT) && dune test ./$(PROJECT)
 
@@ -115,4 +126,4 @@ prog: $(BUILD)/top.bin
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all resources icebram-check test verilate names prog clean
+.PHONY: all resources icebram-check board-sim test verilate names prog clean

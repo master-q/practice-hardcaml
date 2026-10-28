@@ -4,6 +4,8 @@
 #   make test       stage 1: Cyclesim and model tests (dune test), seconds
 #   make verilate   stage 2: the same benches on Verilator, tens of seconds
 #   make synth      stage 3: Yosys + nextpnr for every board project
+#   make board-sim  the generated iCEstick Verilog, firmware and UART at pin
+#                   level in Icarus Verilog (catches board-top problems)
 #   make names      naming discipline on the generated Verilog
 #   make langcheck  ASCII-only policy on all tracked files
 #   make selftest   negative tests for the checks themselves
@@ -25,7 +27,7 @@ I9_TTY ?= /dev/ttyACM0
 
 BOARD_PROJECTS := designs/blink designs/hello designs/mcu designs/mcu_i9
 
-all: setup langcheck selftest test synth names
+all: setup langcheck selftest test board-sim synth names
 
 setup:
 	@scripts/setup_clone.sh
@@ -45,10 +47,13 @@ verilate:
 synth:
 	@for p in $(BOARD_PROJECTS); do echo "== $$p"; $(MAKE) --no-print-directory -C $$p all || exit 1; done
 
+board-sim:
+	$(MAKE) --no-print-directory -C designs/mcu board-sim
+
 names:
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p names || exit 1; done
 
-ci: langcheck selftest test verilate synth names icebram-check ecpbram-check
+ci: langcheck selftest test board-sim verilate synth names icebram-check ecpbram-check
 
 mcu:
 	$(MAKE) -C designs/mcu
@@ -78,4 +83,4 @@ clean:
 	dune clean
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p clean; done
 
-.PHONY: mcu mcu-prog mcu-term i9 i9-prog i9-term ecpbram-check icebram-check all setup langcheck selftest test verilate synth names ci clean
+.PHONY: board-sim mcu mcu-prog mcu-term i9 i9-prog i9-term ecpbram-check icebram-check all setup langcheck selftest test verilate synth names ci clean

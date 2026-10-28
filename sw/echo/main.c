@@ -1,11 +1,13 @@
 /* Line echo: prints a banner and a prompt, echoes typed characters, and on
-   Enter prints the line in upper case. The LEDs show the line length. */
+   Enter prints the line in upper case. The LEDs show 1 after start-up, then
+   the line length. */
 #include "mcu.h"
 
 int main(void)
 {
   char line[64];
 
+  LEDS = 1; /* firmware started (iCEstick: D1) */
   uart_puts("RV32 MCU ready\r\n");
   for (;;) {
     int n = 0;

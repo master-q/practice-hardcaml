@@ -52,6 +52,24 @@ let write_hex ~dir ~prefix contents =
   done
 ;;
 
+(* The core's register file must start as zeros: x0 is never written and
+   reads as the RAM's initial contents. Block RAM is zero after
+   configuration anyway, but say so in the Verilog so that simulators of
+   the generated netlist agree with the chip (BUGS.md B-0014). *)
+let zero_register_file line =
+  match String.chop_prefix (String.strip line) ~prefix:"reg [31:0] regfile[0:" with
+  | Some rest ->
+    let last = Int.of_string (String.chop_suffix_exn rest ~suffix:"];") in
+    printf
+      "    initial begin : regfile_init\n\
+      \        integer k;\n\
+      \        for (k = 0; k <= %d; k = k + 1) regfile[k] = 32'd0;\n\
+      \    end\n"
+      last;
+    true
+  | None -> false
+;;
+
 let print_verilog (config : Mcu.Config.t) ~circuit ~dir ~prefix =
   let scope = Scope.create ~flatten_design:false () in
   let circuit = circuit scope in
@@ -64,9 +82,11 @@ let print_verilog (config : Mcu.Config.t) ~circuit ~dir ~prefix =
   let words = Mcu.Config.ram_words config in
   let dir = Filename_unix.realpath dir in
   let inserted = ref 0 in
+  let regfiles = ref 0 in
   String.split_lines (Buffer.contents buffer)
   |> List.iter ~f:(fun line ->
     print_endline line;
+    if zero_register_file line then Int.incr regfiles;
     for lane = 0 to lanes - 1 do
       let name = Mcu.ram_lane_name lane in
       let decl = Printf.sprintf "reg [7:0] %s[0:%d];" name (words - 1) in
@@ -76,7 +96,8 @@ let print_verilog (config : Mcu.Config.t) ~circuit ~dir ~prefix =
         printf "    initial $readmemh(\"%s/%s_b%d.hex\", %s);\n" dir prefix lane name)
     done);
   if !inserted <> lanes
-  then Printf.failwithf "expected %d RAM lane declarations, found %d" lanes !inserted ()
+  then Printf.failwithf "expected %d RAM lane declarations, found %d" lanes !inserted ();
+  if !regfiles <> 1 then Printf.failwithf "expected 1 register file, found %d" !regfiles ()
 ;;
 
 (* [circuit scope] builds the board's top-level circuit. *)
