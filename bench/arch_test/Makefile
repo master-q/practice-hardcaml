@@ -1,4 +1,4 @@
-# RISC-V architectural tests (riscv-arch-test 2.7.4, RV32I) on the rv32
+# RISC-V architectural tests (riscv-arch-test 2.7.4, RV32I and M) on the rv32
 # core in Cyclesim, in lockstep with the golden model, signatures compared
 # with the reference signatures shipped with the tests. Issue #17.
 # Needs network access the first time (fetch).
@@ -10,12 +10,16 @@ fetch:
 	./fetch.sh
 
 build: fetch
-	./build.sh
+	./build.sh I rv32i build/tests
+	./build.sh M rv32im build/tests_m
 
 RUN := $(ROOT)/_build/default/bench/arch_test/run.exe
 
+# RV32I on the core; M on the golden model alone until the core has it
+# (#5, plan in #21).
 run: build selftest
 	$(RUN) build/tests
+	$(RUN) --model-m build/tests_m
 
 # The runner must fail on a wrong signature word.
 selftest: build
