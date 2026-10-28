@@ -1,0 +1,32 @@
+; Firmware for designs/mcu, built with the RISC-V cross compiler
+; (riscv64-unknown-elf-gcc, see .devcontainer/devcontainer.json).
+
+(rule
+ (targets echo.elf echo.bin)
+ (deps
+  common/crt0.S
+  common/link.ld
+  common/mcu.h
+  echo/main.c)
+ (action
+  (progn
+   (run
+    riscv64-unknown-elf-gcc
+    -march=rv32e
+    -mabi=ilp32e
+    -Os
+    -ffreestanding
+    -nostdlib
+    -mno-relax
+    -Wl,--no-warn-rwx-segments
+    -Wall
+    -Werror
+    -Icommon
+    -T
+    common/link.ld
+    -o
+    echo.elf
+    common/crt0.S
+    echo/main.c
+    -lgcc)
+   (run riscv64-unknown-elf-objcopy -O binary echo.elf echo.bin))))

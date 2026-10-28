@@ -2,16 +2,29 @@
 # Naming discipline for HardCaml-generated Verilog (see AGENTS.md).
 #
 # Fails if any flip-flop is anonymous: every target of a non-blocking
-# assignment (`x <= ...`) must have a real name, given with let%hw,
-# let%hw_var or (--), so it can be found in synthesis reports, timing paths
-# and waveforms. HardCaml names every intermediate operator `_<N>`, so
-# anonymous combinational wires are expected and only reported as a ratio.
+# assignment inside an `always @(posedge ...)` block must have a real name,
+# given with let%hw, let%hw_var or (--), so it can be found in synthesis
+# reports, timing paths and waveforms. HardCaml also uses `reg` and `<=` for
+# combinational case statements (`always @*`); those are not flip-flops and
+# are ignored (BUGS.md B-0003). HardCaml names every intermediate operator
+# `_<N>`, so anonymous combinational wires are expected and only reported.
 set -euo pipefail
 
 status=0
 for v in "$@"; do
-  flops=$(grep -oE '^\s*[A-Za-z_][A-Za-z0-9_$]*\s*<=' "$v" \
-            | sed -E 's/^\s*//; s/\s*<=$//' | sort -u)
+  flops=$(awk '
+    /always @\(posedge/ { seq = 1; next }
+    /always @\*/        { seq = 0; next }
+    /^[ \t]*end(module)?[ \t]*$/ && seq == 0 { next }
+    seq && /<=/ {
+      line = $0
+      sub(/^[ \t]*/, "", line)
+      sub(/[ \t]*<=.*/, "", line)
+      sub(/\[.*/, "", line)
+      print line
+    }
+    /^[ \t]*(assign|wire|reg|module|endmodule)\b/ { seq = 0 }
+  ' "$v" | sort -u)
   anon_flops=$(printf '%s\n' "$flops" | grep -E '^_[0-9]+$' || true)
   n_flops=$(printf '%s' "$flops" | grep -c . || true)
   n_anon_flops=$(printf '%s' "$anon_flops" | grep -c . || true)
