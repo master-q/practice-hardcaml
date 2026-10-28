@@ -13,7 +13,7 @@ HISTORY.md and any deviation in BUGS.md.
 ## 1. Load and run Dhrystone
 
     make i9-prog       # openFPGALoader -b colorlight-i9 (CMSIS-DAP, SRAM)
-    make i9-term       # picocom -b 115200 /dev/ttyACM0 (I9_TTY=... to change)
+    make i9-term       # picocom -b 115200 /dev-host/ttyACM0 (I9_TTY=... to change)
 
 Expected:
 - LED D2: slow blink for a moment is not visible (the hold is 21 ms);

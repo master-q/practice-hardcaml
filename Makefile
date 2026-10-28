@@ -19,16 +19,18 @@
 # The RV32E MCU on an iCEstick (S4, by hand):
 #   make mcu        build designs/mcu/build/top.bin (firmware sw/echo.bin)
 #   make mcu-prog   build and flash it
-#   make mcu-term   open the UART at 115200 baud (TTY=/dev/ttyUSB1)
+#   make mcu-term   open the UART at 115200 baud (TTY=/dev-host/ttyUSB1)
 #
 # The RV32I MCU on a Colorlight i9 v7.2 with the ext board (S4, by hand):
 #   make i9         build designs/mcu_i9/build/top.bit (firmware: Dhrystone)
 #   make i9-prog    build and load it over the ext board's DAPLink
-#   make i9-term    open the DAPLink serial port (I9_TTY=/dev/ttyACM0)
+#   make i9-term    open the DAPLink serial port (I9_TTY=/dev-host/ttyACM0)
 # Other designs: make -C designs/<name> prog.
 
-TTY ?= /dev/ttyUSB1
-I9_TTY ?= /dev/ttyACM0
+# Serial ports: the devcontainer sees the host's /dev read-only under
+# /dev-host (devcontainer.json runArgs); device nodes there are usable.
+TTY ?= /dev-host/ttyUSB1
+I9_TTY ?= /dev-host/ttyACM0
 
 BOARD_PROJECTS := designs/blink designs/hello designs/mcu designs/mcu_i9
 

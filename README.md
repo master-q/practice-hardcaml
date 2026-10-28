@@ -37,10 +37,10 @@ No design has been run on a board yet (S4).
 ## Running the MCU on an iCEstick
 
     make mcu-prog  # build designs/mcu with sw/echo.bin and flash it
-    make mcu-term  # picocom -b 115200 /dev/ttyUSB1 (override with TTY=...)
+    make mcu-term  # picocom -b 115200 /dev-host/ttyUSB1 (override with TTY=...)
 
 The iCEstick's FTDI chip exposes two serial ports; the UART is the second
-(usually `/dev/ttyUSB1`). After reset the MCU prints `RV32E MCU ready` and
+(usually `/dev-host/ttyUSB1`). After reset the MCU prints `RV32E MCU ready` and
 a `> ` prompt. Type a line and press Enter: it answers in upper case and
 shows the line length on the LEDs. Leave picocom with Ctrl-A Ctrl-X.
 
@@ -53,7 +53,7 @@ re-run Yosys and nextpnr (about 16 s).
 ## Running the MCU on a Colorlight i9 v7.2
 
     make i9-prog   # build designs/mcu_i9 with sw/dhrystone_rv32i.bin, load it
-    make i9-term   # picocom -b 115200 /dev/ttyACM0 (override with I9_TTY=...)
+    make i9-term   # picocom -b 115200 /dev-host/ttyACM0 (override with I9_TTY=...)
 
 The UART goes through the ext board's DAPLink (USB CDC serial). The
 firmware runs Dhrystone (500 runs) and prints cycles and DMIPS; reset the
