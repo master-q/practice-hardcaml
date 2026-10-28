@@ -16,6 +16,7 @@ category, because they cost iterations just the same.
 | S0 | OCaml type check and HardCaml elaboration (width mismatch, combinational loop, undriven wire) | seconds |
 | S1 | Cyclesim expect tests, OCaml golden model (`make test`) | seconds |
 | S2 | Same benches on Verilator (`make verilate`) | tens of seconds |
+| S2n | Post-synthesis: the Yosys iCE40 netlist read back into HardCaml, S1 MCU bench in lockstep and the board top at pin level (`make netlist-sim`) | tens of seconds |
 | S3 | Yosys + nextpnr: resources, timing, naming (`make synth names`) | seconds |
 | S4 | iCEstick hardware (`make -C <project> prog`) | minutes, manual |
 
@@ -82,6 +83,29 @@ No functional defect in the hardware itself has been found yet: the rv32e
 core and the MCU passed lockstep on their first run.
 
 ## Entries
+
+### B-0017: start-up hold was half the documented length
+
+- Date: 2026-10-29
+- Project: ip/mcu (Mcu.Startup), designs/mcu, designs/mcu_i9
+- Found at: S2n (by eye); Catchable at: S1
+- Class: specification / off-by-one (counter width)
+- Symptom: the new board-level netlist simulation printed the prompt at
+  12.5 ms, while Mcu.Startup, AGENTS.md and the iCEstick top promise a
+  hold of at least 20 ms (about 22 ms). The RTL board-sim log showed the
+  same time; nobody had compared it with the documentation.
+- Cause: the hold ends when the counter's msb rises, after 2^(width-1)
+  cycles, but the width was chosen as ceil_log2(cycles) so the hold was
+  2^17 cycles = 10.9 ms at 12 MHz (10.5 ms on the i9). This dates from
+  80f33cd (18-bit counter "2^18 cycles, about 22 ms"). B-0014 was fixed on
+  the board with this 10.9 ms hold, so the shorter hold is known to work.
+- Fix: width = ceil_log2(cycles) + 1: 21.8 ms at 12 MHz, 21.0 ms at
+  25 MHz. The i9 testbench's start value for boot_count follows the new
+  width (it skips most of the hold). The longer hold is strictly more
+  conservative and has not been flashed yet.
+- Regression: ip/mcu/test/test_startup.ml (S1) measures the hold at
+  three clock rates against min_hold_ms; it failed before the fix
+  (1025 cycles for a minimum of 2000).
 
 ### B-0016: board-sim testbench: Verilog has no \r string escape
 

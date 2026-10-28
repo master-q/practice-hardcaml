@@ -10,6 +10,7 @@
 #   make test      S1: Cyclesim tests of this project (dune test)
 #   make verilate  S2: the same benches on Verilator (if verilator/ exists)
 #   make names     naming discipline on the generated Verilog (S3)
+#   make netlist-sim  post-synthesis board simulation (if netlist/ exists)
 #   make prog      flash build/top.bin to an attached iCEstick (S4)
 #   make clean
 
@@ -109,6 +110,15 @@ board-sim: $(FW_FILE) $(EXE)
 	vvp -n $(BUILD)/board_sim.vvp | tr -d '\r' | tee $(BUILD)/board_sim.log
 	@grep -q '^\[tb\] PASS' $(BUILD)/board_sim.log
 
+# Board-level post-synthesis stage (designs that provide netlist/, #20):
+# the same Verilog as board-sim, synthesised by Yosys and simulated as an
+# iCE40 netlist in HardCaml, firmware only in the block RAM INIT values.
+netlist-sim: $(FW_FILE) $(EXE)
+	@mkdir -p $(BUILD)/direct
+	$(EXE) verilog $(FW_FILE) $(BUILD)/direct > $(BUILD)/direct.v
+	cd $(ROOT) && dune build ./$(PROJECT)/netlist/main.exe
+	$(ROOT)/_build/default/$(PROJECT)/netlist/main.exe $(BUILD)/direct.v $(BUILD)/netlist_sim
+
 test:
 	cd $(ROOT) && dune test ./$(PROJECT)
 
@@ -123,11 +133,11 @@ names: $(BUILD)/top.v
 	$(ROOT)/scripts/check_names.sh $<
 
 # Flashing requires every S3 check (B-0015) and, where the design has
-# one, the board simulation to pass.
-prog: all names $(if $(wildcard tb_top.v),board-sim)
+# them, the board simulation and the post-synthesis board simulation.
+prog: all names $(if $(wildcard tb_top.v),board-sim) $(if $(wildcard netlist),netlist-sim)
 	iceprog $(BUILD)/top.bin
 
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all resources icebram-check board-sim test verilate names prog clean
+.PHONY: all resources icebram-check board-sim netlist-sim test verilate names prog clean

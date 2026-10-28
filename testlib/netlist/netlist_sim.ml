@@ -29,27 +29,40 @@ let only_module name text =
   | _ -> failwith "unexpected Yosys JSON"
 ;;
 
-let synthesize ?(dir = "build/netlist_sim") (circuit : Circuit.t) =
-  ignore (Stdlib.Sys.command ("mkdir -p " ^ Stdlib.Filename.quote dir) : int);
-  let name = Circuit.name circuit in
-  let v = Printf.sprintf "%s/%s.v" dir name in
-  let json = Printf.sprintf "%s/%s.json" dir name in
-  Rtl.output ~output_mode:(To_file v) Verilog circuit;
+let yosys ~dir ~top verilog =
+  let json = Printf.sprintf "%s/%s.json" dir top in
   let cmd =
     Printf.sprintf
       "yosys -q -l %s/yosys.log -p 'synth_ice40 -top %s -json %s' %s"
-      dir name json v
+      dir top json verilog
   in
   if Stdlib.Sys.command cmd <> 0 then Printf.failwithf "yosys failed: %s" cmd ();
   let netlist =
     Stdio.In_channel.read_all json
-    |> only_module name
+    |> only_module top
     |> Hardcaml_of_verilog.Expert.Yosys_netlist.of_string
     |> Or_error.ok_exn
     |> Netlist.of_yosys_netlist
     |> Or_error.ok_exn
   in
-  Netlist.find_module_by_name netlist name |> Or_error.ok_exn
+  Netlist.find_module_by_name netlist top |> Or_error.ok_exn
+;;
+
+let mkdir dir = ignore (Stdlib.Sys.command ("mkdir -p " ^ Stdlib.Filename.quote dir) : int)
+
+(* Synthesise a Verilog file (e.g. a board top with $readmemh contents). *)
+let synthesize_file ~dir ~top verilog =
+  mkdir dir;
+  yosys ~dir ~top verilog
+;;
+
+(* Synthesise a HardCaml circuit. *)
+let synthesize ?(dir = "build/netlist_sim") (circuit : Circuit.t) =
+  mkdir dir;
+  let name = Circuit.name circuit in
+  let v = Printf.sprintf "%s/%s.v" dir name in
+  Rtl.output ~output_mode:(To_file v) Verilog circuit;
+  yosys ~dir ~top:name v
 ;;
 
 (* Count of each cell type, for reports and tests. *)
@@ -59,7 +72,27 @@ let cell_counts (m : Netlist.Module.t) =
   |> List.map ~f:(fun l -> List.hd_exn l, List.length l)
 ;;
 
-let create_fn (m : Netlist.Module.t) (inputs : (string * Signal.t) list) =
+(* Block RAM initial contents: (memory name, 256 one-bit words) for every
+   bit of every SB_RAM40_4K, applied by [load_ram_init]. *)
+type ram_init = (string * Bits.t array) list
+
+let ram_init_of_cell (cell : Netlist.Cell.t) ~name =
+  let init = Array.init 16 ~f:(fun k ->
+    Ice40_cells.param_bits cell (Printf.sprintf "INIT_%X" k) ~width:256) in
+  List.init 16 ~f:(fun b ->
+    ( Printf.sprintf "%s_bit%d" name b
+    , Array.init 256 ~f:(fun w -> Bits.bit init.(w / 16) ((16 * (w % 16)) + b)) ))
+;;
+
+let load_ram_init sim (inits : ram_init) =
+  List.iter inits ~f:(fun (name, words) ->
+    match Cyclesim.lookup_mem_by_name sim name with
+    | None -> Printf.failwithf "no memory %s in the simulator" name ()
+    | Some mem -> Array.iteri words ~f:(fun address w -> Cyclesim.Memory.of_bits mem ~address w))
+;;
+
+let create_fn ?(inits = ref []) (m : Netlist.Module.t) (inputs : (string * Signal.t) list) =
+  let rams = ref 0 in
   let nets = Hashtbl.create (module Int) in
   let net = function
     | Bit.Gnd | X -> gnd
@@ -104,13 +137,12 @@ let create_fn (m : Netlist.Module.t) (inputs : (string * Signal.t) list) =
       let sync_set = if has "SS" then Some (port "S") else None in
       out1 "Q" (Ice40_cells.dff ~clock:(port "C") ?enable ?sync_reset ?sync_set (port "D"))
     | "SB_RAM40_4K" ->
-      for k = 0 to 15 do
-        let name = Printf.sprintf "INIT_%X" k in
-        if not (Bits.equal (Ice40_cells.param_bits cell name ~width:256) (Bits.zero 256))
-        then Ice40_cells.unsupported "SB_RAM40_4K %s is not zero" name
-      done;
+      let name = Printf.sprintf "ram40_%d" !rams in
+      Int.incr rams;
+      inits := ram_init_of_cell cell ~name @ !inits;
       let rdata =
         Ice40_cells.ram40
+          ~name
           ~wmode:(Ice40_cells.param_int cell "WRITE_MODE")
           ~rmode:(Ice40_cells.param_int cell "READ_MODE")
           ~rclk:(port "RCLK") ~rclke:(port ~default:vdd "RCLKE") ~re:(port ~default:gnd "RE")
@@ -127,15 +159,17 @@ let create_fn (m : Netlist.Module.t) (inputs : (string * Signal.t) list) =
   List.map m.outputs ~f:(fun p -> p.name, concat_lsb (List.map p.value ~f:net))
 ;;
 
-(* The netlist of [create] as a function over the same interfaces. *)
+(* The netlist of [create] as a function over the same interfaces. RAM
+   initial contents (none for HardCaml-built circuits) are dropped. *)
 module With_interface (I : Interface.S) (O : Interface.S) = struct
+  let of_module ?inits (m : Netlist.Module.t) (i : Signal.t I.t) =
+    let outputs = create_fn ?inits m (I.to_list (I.zip I.port_names i)) in
+    O.map O.port_names ~f:(fun n -> List.Assoc.find_exn outputs ~equal:String.equal n)
+  ;;
+
   let create ?dir ~name create =
     let module C = Circuit.With_interface (I) (O) in
     let m = synthesize ?dir (C.create_exn ~name create) in
-    let fn (i : Signal.t I.t) =
-      let outputs = create_fn m (I.to_list (I.zip I.port_names i)) in
-      O.map O.port_names ~f:(fun n -> List.Assoc.find_exn outputs ~equal:String.equal n)
-    in
-    m, fn
+    m, of_module m
   ;;
 end

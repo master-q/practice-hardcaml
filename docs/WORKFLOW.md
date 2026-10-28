@@ -78,6 +78,7 @@ or from the golden model), as done in `rv32_model/test`.
 | S2 | the same benches on Verilator | `make verilate` | before pushing; in CI |
 | S1 | riscv-arch-test RV32I (independent reference signatures) on the core, lockstep | `make arch-test` | in CI |
 | S2b | the generated board Verilog with firmware, four-state, pin-level UART (Icarus) | `make board-sim` | every change |
+| S2n | post-synthesis: the Yosys iCE40 netlist read back into HardCaml (`hardcaml_of_verilog`, iCE40 cell models in `testlib/netlist`); the MCU bench in lockstep, and the board top with the firmware only in BRAM INIT | `make netlist-sim` | every change |
 | S3 | Yosys + nextpnr (LCs, Fmax), expected BRAM count, naming check | `make synth names` | every change |
 | S4 | iCEstick | `make -C <project> prog` | milestones, by hand |
 
@@ -96,7 +97,24 @@ Cyclesim is a zero-delay, two-state simulator. It cannot see timing (setup,
 hold, Fmax), X propagation (uninitialised state), what Yosys infers (BRAM
 vs. LCs), clocking and PLLs, or pin assignment. S3 covers resources, Fmax
 and inference; S4 covers the rest. HardCaml's structural output makes
-simulation/synthesis mismatches unlikely.
+simulation/synthesis mismatches unlikely; S2n checks that claim by running
+the benches on what Yosys produced.
+
+### Three-stage simulation (RTL, post-synthesis, post-route)
+
+The usual FPGA ladder simulates the RTL, the post-synthesis netlist and
+the placed-and-routed netlist with cell delays (issue #19). Here:
+
+- RTL: S1, S2, S2b.
+- Post-synthesis: S2n, inside the HardCaml ecosystem. Yosys's netlist
+  becomes a HardCaml circuit, so the same OCaml benches (including
+  lockstep against the golden model) run on it in Cyclesim. Each iCE40
+  cell model is checked against the RTL of a small design in every block
+  RAM port width, and complementing every LUT must make the stage fail.
+  Two-state only: X propagation stays with S2b.
+- Post-route with delays: not simulated. The design has one clock and
+  one synchronised asynchronous input (UART RX); nextpnr's static timing
+  analysis (S3) checks every path, which a delay simulation cannot.
 
 ### Iteration rules
 
@@ -141,6 +159,8 @@ the MCU's load port.
 | Core lockstep: directed programs, every trap, 300 random programs | S1 | ~2 s |
 | MCU runs the C echo firmware, UART in/out, lockstep (46k instructions) | S1 | ~2 s |
 | Same MCU test on Verilator | S2 | ~11 s |
+| Same MCU test on the Yosys iCE40 netlist (lockstep) | S2n | ~17 s |
+| iCEstick top netlist boots from BRAM INIT, echoes at pin level | S2n | ~12 s |
 | Fits: LC budget, exactly 10 BRAMs, Fmax, all flip-flops named | S3 | ~16 s |
 | icebram swap equals direct synthesis | S3 (`make ci`) | ~16 s |
 

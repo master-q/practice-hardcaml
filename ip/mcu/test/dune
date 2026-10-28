@@ -7,4 +7,4 @@
    %{workspace_root}/sw/dhrystone_sim.bin))
  (libraries mcu mcu_bench hardcaml stdio)
  (preprocess
-  (pps ppx_jane ppx_expect)))
+  (pps ppx_hardcaml ppx_jane ppx_expect)))

@@ -3,6 +3,27 @@
 A dated log of the project, newest entry first. Each entry records what was
 done, what was learned, and the numbers measured that day.
 
+## 2026-10-29: three-stage simulation survey (#19), post-synthesis stage (#20)
+
+- Survey of the article on RTL / post-synthesis / post-route simulation:
+  RTL was covered (S1, S2, S2b), post-synthesis was missing, post-route
+  delay simulation adds nothing over nextpnr's STA for this design.
+- Readable Verilog: intermediate signals named with let%hw / let%hw_var /
+  apply_names in the UART, hello, core and MCU. Anonymous wires: mcu
+  745 -> 695, hello 116 -> 109; LCs unchanged. Full_path naming rejected
+  (redundant prefixes in non-flattened modules), auto_label_hierarchical_
+  ports has no effect without flattening.
+- S2n (`make netlist-sim`): Yosys netlist read back with
+  hardcaml_of_verilog, iCE40 cells modelled in OCaml (testlib/netlist).
+  The MCU lockstep bench passes on the netlist (46,207 instructions,
+  200k cycles in 13 s); the iCEstick top netlist boots from BRAM INIT and
+  echoes at pin level (12 s). An Icarus gate-level run of the same netlist
+  was too slow for the gate. Negative tests: inverted LUTs fail both the
+  cell test and the MCU run.
+- B-0017: the start-up hold was 10.9 ms, not the documented >= 20 ms
+  (counter one bit short since 80f33cd). Fixed (21.8 ms at 12 MHz), S1
+  test added. iCEstick 1110 LCs.
+
 ## 2026-10-29: riscv-arch-test (#17)
 
 - bench/arch_test: riscv-arch-test 2.7.4 (the last release that ships

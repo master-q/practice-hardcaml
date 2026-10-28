@@ -1,8 +1,8 @@
 (* HardCaml models of the iCE40 cells Yosys `synth_ice40` emits, written
    from the behavioural models in Yosys's ice40/cells_sim.v. Flip-flops
-   power up as 0 (as on the chip and in Cyclesim). Block RAM initial
-   contents are not modelled: HardCaml v0.17 memories start as zero, so
-   [create] rejects any SB_RAM40_4K with a non-zero INIT. *)
+   power up as 0 (as on the chip and in Cyclesim). HardCaml v0.17 memories
+   have no initial contents, so each block RAM bit is a named memory that
+   Netlist_sim fills from INIT_0..INIT_F after the simulator is built. *)
 open! Base
 open! Hardcaml
 open Signal
@@ -93,7 +93,7 @@ let gather mode r =
   | m -> unsupported "SB_RAM40_4K mode %d" m
 ;;
 
-let ram40 ~wmode ~rmode ~rclk ~rclke ~re ~raddr ~wclk ~wclke ~we ~waddr ~mask ~wdata =
+let ram40 ~name ~wmode ~rmode ~rclk ~rclke ~re ~raddr ~wclk ~wclke ~we ~waddr ~mask ~wdata =
   let wmask = write_mask wmode waddr mask in
   let wdata = spread wmode wdata in
   let rmask = if rmode = 0 then zero 16 else write_mask rmode raddr (zero 16) in
@@ -101,6 +101,7 @@ let ram40 ~wmode ~rmode ~rclk ~rclke ~re ~raddr ~wclk ~wclke ~we ~waddr ~mask ~w
   let q =
     List.init 16 ~f:(fun b ->
       (Ram.create
+         ~name:(Printf.sprintf "%s_bit%d" name b)
          ~collision_mode:Read_before_write
          ~size:256
          ~write_ports:

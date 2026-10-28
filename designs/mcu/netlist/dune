@@ -1,0 +1,5 @@
+(executable
+ (name main)
+ (libraries mcu_icestick netlist_sim uart_bench hardcaml stdio)
+ (preprocess
+  (pps ppx_jane)))

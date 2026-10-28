@@ -19,7 +19,10 @@ let min_hold_ms = 20
 let hold_bits ~clock_hz =
   match Sys.getenv "EXPERIMENT" with
   | Some "no-hold" -> 1
-  | _ -> Int.ceil_log2 (clock_hz / 1000 * min_hold_ms)
+  | _ ->
+    (* The hold ends when the counter's msb rises, after 2^(width-1)
+       cycles; that must be at least min_hold_ms (B-0017). *)
+    Int.ceil_log2 (clock_hz / 1000 * min_hold_ms) + 1
 ;;
 
 (* High while the MCU must be held in reset. *)

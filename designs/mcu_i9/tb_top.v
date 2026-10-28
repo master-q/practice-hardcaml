@@ -18,7 +18,7 @@ module tb;
   // starts near the end of the hold here to save simulation time (the
   // iCEstick board-sim runs the full hold).
   initial begin
-    dut.boot_count = 19'h7ff00;
+    dut.boot_count = 20'h7ff00;
     dut.blink = 0;
     dut.mcu.por_count = 0;
   end
