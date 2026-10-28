@@ -2,7 +2,9 @@
 
    Cycles per instruction: Fetch, Decode, Read_rs2, Execute (4); loads add
    one (Load); shifts add 1 + shamt (Shift, one bit per cycle, to save the
-   area of a barrel shifter).
+   area of a barrel shifter). With [~dual_read:true] (issue #4, the ECP5
+   MCU) the register file has a second copy, so Decode reads rs1 and rs2
+   together and Read_rs2 is skipped: 3 cycles per instruction.
 
    Memory bus: [mem_addr] with [mem_read] or [mem_write] is valid for one
    cycle; read data must be on [mem_rdata] in the next cycle. Writes carry a
@@ -94,7 +96,7 @@ module State = struct
   [@@deriving sexp_of, compare ~localize, enumerate]
 end
 
-let create ?(zicsr = false) ~(base : Rv32_model.Isa.base) scope (i : _ I.t) =
+let create ?(zicsr = false) ?(dual_read = false) ~(base : Rv32_model.Isa.base) scope (i : _ I.t) =
   let reg_bits = Int.ceil_log2 (Rv32_model.Isa.num_regs base) in
   let spec = Reg_spec.create ~clock:i.clock ~clear:i.clear () in
   let sm = Always.State_machine.create (module State) spec in
@@ -113,12 +115,11 @@ let create ?(zicsr = false) ~(base : Rv32_model.Isa.base) scope (i : _ I.t) =
   (* Register file. *)
   let%hw_var rf_we = Always.Variable.wire ~default:gnd in
   let%hw_var rf_wdata = Always.Variable.wire ~default:(zero 32) in
-  let%hw rf_raddr =
-    mux2 (sm.is Decode) i.mem_rdata.:[15 + reg_bits - 1, 15] ir.:[20 + reg_bits - 1, 20]
-  in
-  let rs2_value =
+  let rs1_field x = x.:[15 + reg_bits - 1, 15]
+  and rs2_field x = x.:[20 + reg_bits - 1, 20] in
+  let regfile ~name raddr =
     (Ram.create
-       ~name:"regfile"
+       ~name
        ~attributes:[ Rtl_attribute.create "no_rw_check" ]
        ~collision_mode:Read_before_write
        ~size:(Rv32_model.Isa.num_regs base)
@@ -129,14 +130,25 @@ let create ?(zicsr = false) ~(base : Rv32_model.Isa.base) scope (i : _ I.t) =
             ; write_data = rf_wdata.value
             }
          |]
-       ~read_ports:
-         [| { read_clock = i.clock; read_address = rf_raddr; read_enable = vdd } |]
+       ~read_ports:[| { read_clock = i.clock; read_address = raddr; read_enable = vdd } |]
        ()).(0)
   in
-  (* In Read_rs2 the RAM output is rs1; in Execute it is rs2. *)
-  let%hw rf_rdata = rs2_value in
-  let a = rs1_value.value in
-  let b = rf_rdata in
+  let a, b =
+    if dual_read
+    then (
+      (* Both copies are written together; after Decode their addresses
+         come from ir, so the outputs hold through Execute. *)
+      let%hw rf_raddr = mux2 (sm.is Decode) (rs1_field i.mem_rdata) (rs1_field ir) in
+      let%hw rf_raddr_rs2 = mux2 (sm.is Decode) (rs2_field i.mem_rdata) (rs2_field ir) in
+      let%hw rf_rdata = regfile ~name:"regfile" rf_raddr in
+      let%hw rf_rdata_rs2 = regfile ~name:"regfile_rs2" rf_raddr_rs2 in
+      rf_rdata, rf_rdata_rs2)
+    else (
+      let%hw rf_raddr = mux2 (sm.is Decode) (rs1_field i.mem_rdata) (rs2_field ir) in
+      (* In Read_rs2 the RAM output is rs1; in Execute it is rs2. *)
+      let%hw rf_rdata = regfile ~name:"regfile" rf_raddr in
+      rs1_value.value, rf_rdata)
+  in
   let dec = Decode.create ~zicsr ~base { Decode.I.insn = ir } |> Decode.O.Of_signal.apply_names ~prefix:"dec_" in
   let%hw imm = (Imm.create { Imm.I.insn = ir }).imm in
   let%hw alu_b = mux2 (dec.op |: dec.branch) b imm in
@@ -337,8 +349,11 @@ let create ?(zicsr = false) ~(base : Rv32_model.Isa.base) scope (i : _ I.t) =
                    :: enter_trap ~cause:(vdd @: zero 27 @: irq_code) ~tval:(zero 32))
                   [ mem_read <-- vdd; sm.set_next Decode ]
               ] )
-          ; Decode, [ ir_reg <-- i.mem_rdata; sm.set_next Read_rs2 ]
-          ; Read_rs2, [ rs1_value <-- rf_rdata; sm.set_next Execute ]
+          ; ( Decode
+            , [ ir_reg <-- i.mem_rdata
+              ; sm.set_next (if dual_read then Execute else Read_rs2)
+              ] )
+          ; Read_rs2, [ rs1_value <-- b; sm.set_next Execute ]
           ; ( Execute
             , [ writes_rd
                 <-- (dec.lui |: dec.auipc |: dec.jal |: dec.jalr |: dec.load |: dec.op_imm
@@ -437,7 +452,7 @@ let create ?(zicsr = false) ~(base : Rv32_model.Isa.base) scope (i : _ I.t) =
   }
 ;;
 
-let hierarchical ?zicsr ~base scope =
+let hierarchical ?zicsr ?dual_read ~base scope =
   let module H = Hierarchy.In_scope (I) (O) in
-  H.hierarchical ~scope ~name:"rv32_core" (create ?zicsr ~base)
+  H.hierarchical ~scope ~name:"rv32_core" (create ?zicsr ?dual_read ~base)
 ;;

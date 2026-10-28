@@ -57,17 +57,21 @@ let write_hex ~dir ~prefix contents =
    configuration anyway, but say so in the Verilog so that simulators of
    the generated netlist agree with the chip (BUGS.md B-0014). *)
 let zero_register_file line =
-  match String.chop_prefix (String.strip line) ~prefix:"reg [31:0] regfile[0:" with
-  | Some rest ->
-    let last = Int.of_string (String.chop_suffix_exn rest ~suffix:"];") in
-    printf
-      "    initial begin : regfile_init\n\
-      \        integer k;\n\
-      \        for (k = 0; k <= %d; k = k + 1) regfile[k] = 32'd0;\n\
-      \    end\n"
-      last;
-    true
-  | None -> false
+  (* regfile, and regfile_rs2 with Config.dual_read *)
+  List.exists [ "regfile"; "regfile_rs2" ] ~f:(fun name ->
+    match String.chop_prefix (String.strip line) ~prefix:("reg [31:0] " ^ name ^ "[0:") with
+    | Some rest ->
+      let last = Int.of_string (String.chop_suffix_exn rest ~suffix:"];") in
+      printf
+        "    initial begin : %s_init\n\
+        \        integer k;\n\
+        \        for (k = 0; k <= %d; k = k + 1) %s[k] = 32'd0;\n\
+        \    end\n"
+        name
+        last
+        name;
+      true
+    | None -> false)
 ;;
 
 (* EXPERIMENT=no-regfile-init (environment) omits it, to reproduce B-0014. *)
@@ -102,8 +106,9 @@ let print_verilog (config : Mcu.Config.t) ~circuit ~dir ~prefix =
     done);
   if !inserted <> lanes
   then Printf.failwithf "expected %d RAM lane declarations, found %d" lanes !inserted ();
-  if init_register_file && !regfiles <> 1
-  then Printf.failwithf "expected 1 register file, found %d" !regfiles ()
+  let expected = if config.dual_read then 2 else 1 in
+  if init_register_file && !regfiles <> expected
+  then Printf.failwithf "expected %d register files, found %d" expected !regfiles ()
 ;;
 
 (* [circuit scope] builds the board's top-level circuit. *)

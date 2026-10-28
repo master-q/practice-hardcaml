@@ -3,6 +3,18 @@
 A dated log of the project, newest entry first. Each entry records what was
 done, what was learned, and the numbers measured that day.
 
+## 2026-10-29: dual register-file read (#4, step 1)
+
+- Core ~dual_read: a second register-file copy, read in Decode together
+  with the first, removes the Read_rs2 state. On in the i9 configuration,
+  off on the iCEstick (frozen, 1122 LCs unchanged).
+- Lockstep: the random suites (with and without Zicsr and random
+  interrupts) and riscv-arch-test (37/37) also run on the dual-read core;
+  all passed on the first run, no defect.
+- Dhrystone on the i9 (pinned GCC 15.2, rv32i_zicsr): CPI 4.26 -> 3.26,
+  1898 cycles/run, 0.299 DMIPS/MHz (7.5 DMIPS at 25 MHz). Area 2516 ->
+  2766 TRELLIS_COMB (budget raised to 3200), 57.0 MHz.
+
 ## 2026-10-29: Zicsr, traps and interrupts in hardware (#3)
 
 - The maintainer froze the iCEstick (full); new features go to the ECP5

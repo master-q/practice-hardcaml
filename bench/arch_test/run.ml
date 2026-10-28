@@ -1,7 +1,9 @@
 (* Run the riscv-arch-test images built by build.sh on the rv32 core in
    Cyclesim, in lockstep with the golden model, and compare the signature
    with the reference signature shipped with the tests (produced by
-   independent simulators, so this also checks the golden model).
+   independent simulators, so this also checks the golden model). Each
+   test runs on the plain RV32I core and on the i9 configuration (Zicsr,
+   dual register-file read).
 
      run.exe DIR    (DIR = build/tests) *)
 open! Base
@@ -18,7 +20,7 @@ let words_of_file path =
       if i < String.length s then acc lor (Char.to_int s.[i] lsl (8 * b)) else acc))
 ;;
 
-let run_test dir name =
+let run_test ~config dir name =
   let program = words_of_file (dir ^/ name ^ ".bin") in
   let sig_begin, sig_end =
     Stdlib.Scanf.sscanf (In_channel.read_all (dir ^/ name ^ ".sig")) " %x %x" (fun b e -> b, e)
@@ -29,7 +31,10 @@ let run_test dir name =
     |> List.map ~f:(fun l -> Int.of_string ("0x" ^ String.strip l))
   in
   let r =
+    let zicsr, dual_read = config in
     Rv32_bench.Core_harness.run
+      ~zicsr
+      ~dual_read
       ~base:Rv32i
       ~mem_bytes
       ~max_cycles:20_000_000
@@ -59,7 +64,13 @@ let run_test dir name =
     | None, None -> Some "did not halt"
   in
   (match problem with
-   | None -> printf "PASS %-16s %5d instructions, %4d signature words\n" name r.retired (List.length reference)
+   | None ->
+     printf
+       "PASS %-16s %-6s %5d instructions, %4d signature words\n"
+       name
+       (if fst config then "i9" else "rv32i")
+       r.retired
+       (List.length reference)
    | Some p -> printf "FAIL %-16s %s\n" name p);
   Option.is_none problem
 ;;
@@ -72,7 +83,10 @@ let () =
     |> List.filter_map ~f:(String.chop_suffix ~suffix:".bin")
     |> List.sort ~compare:String.compare
   in
-  let passed = List.count names ~f:(run_test dir) in
+  let configs = [ false, false; true, true ] in
+  let passed =
+    List.count names ~f:(fun n -> List.for_all configs ~f:(fun config -> run_test ~config dir n))
+  in
   let skipped =
     In_channel.read_lines (dir ^/ "skipped.txt") |> List.filter ~f:(Fn.non String.is_empty)
   in

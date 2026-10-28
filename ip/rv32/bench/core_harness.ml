@@ -14,9 +14,11 @@ type result =
   }
 [@@deriving sexp_of]
 
-let create_sim ?zicsr ~base () =
+let create_sim ?zicsr ?dual_read ~base () =
   let scope = Scope.create ~flatten_design:true () in
-  Sim.create ~config:Cyclesim.Config.trace_all (Rv32.Core.create ?zicsr ~base scope)
+  Sim.create
+    ~config:Cyclesim.Config.trace_all
+    (Rv32.Core.create ?zicsr ?dual_read ~base scope)
 ;;
 
 (* [model_program] (default: [program]) exists to test the checker itself.
@@ -25,6 +27,7 @@ let create_sim ?zicsr ~base () =
    test the checker itself. *)
 let run
   ?(zicsr = false)
+  ?dual_read
   ?(irq = fun (_ : int) -> 0)
   ?checker_irq
   ?(base = Rv32_model.Isa.Rv32e)
@@ -34,7 +37,7 @@ let run
   ?model_program
   program
   =
-  let sim = match sim with Some s -> s | None -> create_sim ~zicsr ~base () in
+  let sim = match sim with Some s -> s | None -> create_sim ~zicsr ?dual_read ~base () in
   let lockstep =
     Lockstep.create ~zicsr ~base ~mem_bytes ~program:(Option.value model_program ~default:program) ()
   in

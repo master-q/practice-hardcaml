@@ -21,6 +21,7 @@ let config =
   ; clocks_per_bit = clock_hz / 115_200
   ; counters = false
   ; zicsr = false
+  ; dual_read = false
   }
 ;;
 

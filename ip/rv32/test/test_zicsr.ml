@@ -229,7 +229,7 @@ let random_irqs rng =
   pulses (go (Random.State.int rng 100) [])
 ;;
 
-let random_programs ~base =
+let random_programs ?dual_read ~base () =
   let nregs = Rv32_model.Isa.num_regs base in
   let rng = Random.State.make [| 3 |] in
   let programs = 300 in
@@ -238,7 +238,7 @@ let random_programs ~base =
   let interrupts = ref 0 in
   for n = 1 to programs do
     let program = random_program rng ~nregs ~length:80 in
-    let r = H.run ~zicsr:true ~irq:(random_irqs rng) ~base program in
+    let r = H.run ~zicsr:true ?dual_read ~irq:(random_irqs rng) ~base program in
     retired := !retired + r.retired;
     interrupts := !interrupts + r.interrupts;
     match r.mismatch, r.trap with
@@ -263,10 +263,12 @@ let random_programs ~base =
 ;;
 
 let%expect_test "random programs with CSRs and interrupts" =
-  random_programs ~base:Rv32e;
-  random_programs ~base:Rv32i;
+  random_programs ~base:Rv32e ();
+  random_programs ~base:Rv32i ();
+  random_programs ~dual_read:true ~base:Rv32i ();
   [%expect {|
     Rv32e: 300 programs, 37701 instructions, 1014 interrupts, 0 failures
     Rv32i: 300 programs, 49918 instructions, 1682 interrupts, 0 failures
+    Rv32i: 300 programs, 49569 instructions, 1594 interrupts, 0 failures
     |}]
 ;;
