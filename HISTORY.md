@@ -3,6 +3,20 @@
 A dated log of the project, newest entry first. Each entry records what was
 done, what was learned, and the numbers measured that day.
 
+## 2026-10-29: riscv-arch-test (#17)
+
+- bench/arch_test: riscv-arch-test 2.7.4 (the last release that ships
+  reference signatures, produced by independent simulators) fetched on
+  demand; our model_test.h ends tests with EBREAK, no trap handler (no
+  CSRs yet). The runner executes each test on the core in Cyclesim in
+  lockstep with rv32_model and compares the signature with the reference.
+- Result: 37/37 RV32I tests pass (about 5 s); jalr-01 is skipped because
+  it does not assemble with current binutils (`la x0, 5b`). This is the
+  first check of the core and the golden model against an oracle that is
+  not ours. No defect found.
+- Not covered yet: RV32E (the 3.x tests have no shipped references; they
+  could be run against our model only), tests needing traps (#3).
+
 ## 2026-10-29: i9 bring-up preparation (#16)
 
 - Issues filed: toolchain pinning and checks (#11-#15, to be done in a

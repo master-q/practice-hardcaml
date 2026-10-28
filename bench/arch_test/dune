@@ -1,0 +1,5 @@
+(executable
+ (name run)
+ (libraries rv32_bench rv32_model hardcaml stdio)
+ (preprocess
+  (pps ppx_jane)))

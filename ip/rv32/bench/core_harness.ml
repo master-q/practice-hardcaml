@@ -9,6 +9,7 @@ type result =
   ; cycles : int
   ; trap : int option
   ; mismatch : string option
+  ; memory : (Bytes.t[@sexp.opaque]) (* final memory contents *)
   }
 [@@deriving sexp_of]
 
@@ -38,7 +39,7 @@ let run
   let word addr = Stdlib.Bytes.get_int32_le mem (addr land (mem_bytes - 4)) in
   let rec loop cycle read_data =
     if cycle >= max_cycles
-    then { retired = lockstep.retired; cycles = cycle; trap = None; mismatch = lockstep.mismatch }
+    then { retired = lockstep.retired; cycles = cycle; trap = None; mismatch = lockstep.mismatch; memory = mem }
     else (
       i.mem_rdata := Bits.of_int32 ~width:32 read_data;
       Cyclesim.cycle_check sim;
@@ -47,7 +48,7 @@ let run
       then (
         let trap = Bits.to_int !(o.trap) in
         Lockstep.on_halt lockstep ~trap;
-        { retired = lockstep.retired; cycles = cycle; trap = Some trap; mismatch = lockstep.mismatch })
+        { retired = lockstep.retired; cycles = cycle; trap = Some trap; mismatch = lockstep.mismatch; memory = mem })
       else (
         if Bits.to_bool !(o.retire) then Lockstep.on_retire lockstep o;
         let addr = Bits.to_int !(o.mem_addr) in
@@ -68,7 +69,7 @@ let run
         Cyclesim.cycle_after_clock_edge sim;
         if Option.is_some lockstep.mismatch
         then
-          { retired = lockstep.retired; cycles = cycle; trap = None; mismatch = lockstep.mismatch }
+          { retired = lockstep.retired; cycles = cycle; trap = None; mismatch = lockstep.mismatch; memory = mem }
         else loop (cycle + 1) next))
   in
   loop 0 0l

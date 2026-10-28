@@ -76,6 +76,7 @@ or from the golden model), as done in `rv32_model/test`.
 | S0 | OCaml type check, HardCaml elaboration checks; SAT equivalence proofs (`Hardcaml_verify.Sec` + z3) | `dune build`, `make test` | every change |
 | S1 | Cyclesim expect tests; OCaml golden model | `make test` | every change |
 | S2 | the same benches on Verilator | `make verilate` | before pushing; in CI |
+| S1 | riscv-arch-test RV32I (independent reference signatures) on the core, lockstep | `make arch-test` | in CI |
 | S2b | the generated board Verilog with firmware, four-state, pin-level UART (Icarus) | `make board-sim` | every change |
 | S3 | Yosys + nextpnr (LCs, Fmax), expected BRAM count, naming check | `make synth names` | every change |
 | S4 | iCEstick | `make -C <project> prog` | milestones, by hand |

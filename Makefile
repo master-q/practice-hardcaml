@@ -10,6 +10,7 @@
 #   make names      naming discipline on the generated Verilog
 #   make langcheck  ASCII-only policy on all tracked files
 #   make selftest   negative tests for the checks themselves
+#   make arch-test  riscv-arch-test RV32I suite on the core (fetches it once)
 #   make ci         everything above, including verilate and icebram-check
 #
 # The RV32E MCU on an iCEstick (S4, by hand):
@@ -54,6 +55,11 @@ synth:
 board-sim:
 	$(MAKE) --no-print-directory -C designs/mcu board-sim
 
+# riscv-arch-test (RV32I, reference signatures) on the core; fetches the
+# tests on first use. Issue #17.
+arch-test:
+	$(MAKE) --no-print-directory -C bench/arch_test run
+
 # The i9 board simulation takes about 2 minutes (Icarus, UART output).
 board-sim-i9:
 	$(MAKE) --no-print-directory -C designs/mcu_i9 board-sim
@@ -61,7 +67,7 @@ board-sim-i9:
 names:
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p names || exit 1; done
 
-ci: langcheck selftest test board-sim board-sim-i9 verilate synth names icebram-check ecpbram-check
+ci: langcheck selftest test arch-test board-sim board-sim-i9 verilate synth names icebram-check ecpbram-check
 
 mcu:
 	$(MAKE) -C designs/mcu
@@ -91,4 +97,4 @@ clean:
 	dune clean
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p clean; done
 
-.PHONY: versions board-sim board-sim-i9 mcu mcu-prog mcu-term i9 i9-prog i9-term ecpbram-check icebram-check all setup langcheck selftest test verilate synth names ci clean
+.PHONY: versions arch-test board-sim board-sim-i9 mcu mcu-prog mcu-term i9 i9-prog i9-term ecpbram-check icebram-check all setup langcheck selftest test verilate synth names ci clean
