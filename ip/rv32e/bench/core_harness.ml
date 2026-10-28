@@ -17,9 +17,12 @@ let create_sim () =
   Sim.create ~config:Cyclesim.Config.trace_all (Rv32e.Core.create scope)
 ;;
 
-let run ?(mem_bytes = 4096) ?(max_cycles = 100_000) ?sim program =
+(* [model_program] (default: [program]) exists to test the checker itself. *)
+let run ?(mem_bytes = 4096) ?(max_cycles = 100_000) ?sim ?model_program program =
   let sim = match sim with Some s -> s | None -> create_sim () in
-  let lockstep = Lockstep.create ~mem_bytes ~program () in
+  let lockstep =
+    Lockstep.create ~mem_bytes ~program:(Option.value model_program ~default:program) ()
+  in
   let mem = Bytes.make mem_bytes '\000' in
   List.iteri program ~f:(fun k w ->
     Stdlib.Bytes.set_int32_le mem (4 * k) (Int32.of_int_trunc w));
