@@ -1,0 +1,5 @@
+(executables
+ (names gen boot)
+ (libraries soc_model rv32_model base stdio unix)
+ (preprocess
+  (pps ppx_jane)))
