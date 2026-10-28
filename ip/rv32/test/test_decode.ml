@@ -28,6 +28,7 @@ let model_class w =
   | Csr _ -> "csr"
   | Mret -> "mret"
   | Wfi -> "wfi"
+  | Mul_div _ | Lr _ | Sc _ | Amo _ -> "m/a (not in this decoder)"
   | Illegal _ -> "illegal"
 ;;
 

@@ -19,7 +19,17 @@
    - mcycle, minstret (and h, and the user-level aliases) are read through
      [csr_input]; writes to the machine counters are ignored.
    - misa, mvendorid, marchid, mimpid, mhartid read as 0. Other CSRs are
-     illegal, as are writes to read-only CSRs (address bits 11..10 = 3). *)
+     illegal, as are writes to read-only CSRs (address bits 11..10 = 3).
+
+   M and A extensions ([m], [a]; issue #25):
+   - Division by zero and signed overflow give the results the spec
+     defines (no trap).
+   - One hart: aq/rl are ignored. LR.W sets a reservation on its address;
+     SC.W succeeds (writes, rd = 0) only if the reservation is valid for
+     the same address, otherwise rd = 1 and nothing is written; every
+     SC.W clears the reservation, and so does every trap entry. AMOs and
+     LR/SC must be word aligned (misaligned -> store/AMO misaligned, cause
+     6; LR -> load misaligned, cause 4). *)
 
 open Sexplib0.Sexp_conv
 open Ppx_compare_lib.Builtin
@@ -62,6 +72,9 @@ let no_io =
 type t =
   { base : Isa.base
   ; zicsr : bool
+  ; m : bool
+  ; a : bool
+  ; mutable reservation : int option (* LR.W address *)
   ; regs : int array
   ; mutable pc : int
   ; mem : Bytes.t
@@ -79,9 +92,21 @@ type t =
 
 let mask32 v = v land 0xffff_ffff
 let signed32 v = Isa.sign_extend v ~width:32
-let create ?(io = no_io) ?(zicsr = false) ?(csr_input = fun _ -> 0) ~base ~mem_bytes () =
+let create
+  ?(io = no_io)
+  ?(zicsr = false)
+  ?(m = false)
+  ?(a = false)
+  ?(csr_input = fun _ -> 0)
+  ~base
+  ~mem_bytes
+  ()
+  =
   { base
   ; zicsr
+  ; m
+  ; a
+  ; reservation = None
   ; regs = Array.make (Isa.num_regs base) 0
   ; pc = 0
   ; mem = Bytes.make mem_bytes '\000'
@@ -136,6 +161,7 @@ let read_only csr = (csr lsr 10) land 3 = 3
 
 (* Enter the trap handler: the state change of a trap or interrupt. *)
 let enter_trap t ~cause ~tval =
+  t.reservation <- None;
   t.mepc <- t.pc land lnot 3;
   t.mcause <- cause land 0x8000_000f;
   t.mtval <- mask32 tval;
@@ -197,6 +223,67 @@ let alu (op : Isa.alu) a b =
      | And -> a land b)
 ;;
 
+(* The 64-bit product of two 32-bit unsigned values as (hi, lo), in
+   16-bit limbs so that nothing overflows a 63-bit OCaml int. *)
+let mul_u32 a b =
+  let al = a land 0xffff
+  and ah = a lsr 16
+  and bl = b land 0xffff
+  and bh = b lsr 16 in
+  let ll = al * bl
+  and lh = al * bh
+  and hl = ah * bl
+  and hh = ah * bh in
+  let mid = (ll lsr 16) + (lh land 0xffff) + (hl land 0xffff) in
+  let lo = (ll land 0xffff) lor ((mid land 0xffff) lsl 16) in
+  let hi = hh + (lh lsr 16) + (hl lsr 16) + (mid lsr 16) in
+  mask32 hi, lo
+;;
+
+(* Upper 32 bits of a x b where a and/or b are signed: the unsigned
+   product, corrected by subtracting b (resp. a) when a (resp. b) is
+   negative (two's complement identity). *)
+let mulh_mixed ~a_signed ~b_signed a b =
+  let hi, _ = mul_u32 a b in
+  let hi = if a_signed && a land 0x8000_0000 <> 0 then hi - b else hi in
+  let hi = if b_signed && b land 0x8000_0000 <> 0 then hi - a else hi in
+  mask32 hi
+;;
+
+let mul_div (op : Isa.mul_op) a b =
+  let sa = signed32 a
+  and sb = signed32 b in
+  match op with
+  | Mul -> snd (mul_u32 a b)
+  | Mulh -> mulh_mixed ~a_signed:true ~b_signed:true a b
+  | Mulhsu -> mulh_mixed ~a_signed:true ~b_signed:false a b
+  | Mulhu -> fst (mul_u32 a b)
+  | Div ->
+    if b = 0
+    then 0xffff_ffff
+    else if sa = -0x8000_0000 && sb = -1
+    then a
+    else mask32 (sa / sb)
+  | Divu -> if b = 0 then 0xffff_ffff else a / b
+  | Rem ->
+    if b = 0 then a else if sa = -0x8000_0000 && sb = -1 then 0 else mask32 (sa mod sb)
+  | Remu -> if b = 0 then a else a mod b
+;;
+
+let amo (op : Isa.amo_op) old v =
+  mask32
+    (match op with
+     | Amoswap -> v
+     | Amoadd -> old + v
+     | Amoxor -> old lxor v
+     | Amoand -> old land v
+     | Amoor -> old lor v
+     | Amomin -> if signed32 old <= signed32 v then old else v
+     | Amomax -> if signed32 old >= signed32 v then old else v
+     | Amominu -> if old <= v then old else v
+     | Amomaxu -> if old >= v then old else v)
+;;
+
 let taken (cond : Isa.branch) a b =
   match cond with
   | Beq -> a = b
@@ -234,7 +321,7 @@ let execute t : (retire, trap) result =
   let seq = mask32 (pc + 4) in
   let jump target = if target land 3 <> 0 then Error (Misaligned_fetch target) else Ok target in
   let* rd_write, mem_write, next_pc =
-    match Isa.decode ~zicsr:t.zicsr ~base:t.base insn with
+    match Isa.decode ~zicsr:t.zicsr ~m:t.m ~a:t.a ~base:t.base insn with
     | Lui { rd; imm } -> Ok (Some (rd, mask32 imm), None, seq)
     | Auipc { rd; imm } -> Ok (Some (rd, mask32 (pc + imm)), None, seq)
     | Jal { rd; offset } ->
@@ -290,6 +377,30 @@ let execute t : (retire, trap) result =
               | Csrrs -> old lor src_value
               | Csrrc -> old land lnot src_value);
          Ok (Some (rd, old), None, seq))
+    | Mul_div { op; rd; rs1; rs2 } -> Ok (Some (rd, mul_div op (r rs1) (r rs2)), None, seq)
+    | Lr { rd; rs1 } ->
+      let addr = r rs1 in
+      let* () = check_access t addr 4 in
+      let v = if t.io.is_io addr then t.io.load ~addr ~bytes:4 else read t addr 4 in
+      t.reservation <- Some addr;
+      Ok (Some (rd, v), None, seq)
+    | Sc { rd; rs1; rs2 } ->
+      let addr = r rs1 in
+      let* () =
+        match check_access t addr 4 with
+        | Error (Misaligned_access a) -> Error (Misaligned_access a)
+        | e -> e
+      in
+      let ok = Option.equal Int.equal t.reservation (Some addr) in
+      t.reservation <- None;
+      if ok
+      then Ok (Some (rd, 0), Some (addr, 4, r rs2), seq)
+      else Ok (Some (rd, 1), None, seq)
+    | Amo { op; rd; rs1; rs2 } ->
+      let addr = r rs1 in
+      let* () = check_access t addr 4 in
+      let old = if t.io.is_io addr then t.io.load ~addr ~bytes:4 else read t addr 4 in
+      Ok (Some (rd, old), Some (addr, 4, amo op old (r rs2)), seq)
     | Ecall -> Error Ecall
     | Ebreak -> Error Ebreak
     | Illegal w -> Error (Illegal_instruction w)
@@ -314,8 +425,8 @@ let step t : (retire, trap) result =
     let pc = t.pc in
     let insn = if check_access t pc 4 = Ok () then read t pc 4 else 0 in
     let store =
-      match Isa.decode ~zicsr:true ~base:t.base insn with
-      | Store _ -> true
+      match Isa.decode ~zicsr:true ~m:t.m ~a:t.a ~base:t.base insn with
+      | Store _ | Sc _ | Amo _ -> true
       | _ -> false
     in
     (match cause_of ~store ~pc e with

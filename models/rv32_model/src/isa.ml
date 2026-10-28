@@ -45,6 +45,31 @@ type alu =
   | And
 [@@deriving sexp_of, equal]
 
+(* M extension *)
+type mul_op =
+  | Mul
+  | Mulh
+  | Mulhsu
+  | Mulhu
+  | Div
+  | Divu
+  | Rem
+  | Remu
+[@@deriving sexp_of, equal]
+
+(* A extension: the AMO operations (LR/SC are separate instructions). *)
+type amo_op =
+  | Amoswap
+  | Amoadd
+  | Amoxor
+  | Amoand
+  | Amoor
+  | Amomin
+  | Amomax
+  | Amominu
+  | Amomaxu
+[@@deriving sexp_of, equal]
+
 type csr_op =
   | Csrrw
   | Csrrs
@@ -72,6 +97,10 @@ type t =
   | Csr of { op : csr_op; rd : reg; src : csr_src; csr : int } (* Zicsr *)
   | Mret
   | Wfi
+  | Mul_div of { op : mul_op; rd : reg; rs1 : reg; rs2 : reg } (* M *)
+  | Lr of { rd : reg; rs1 : reg } (* A; aq/rl are ignored (one hart) *)
+  | Sc of { rd : reg; rs1 : reg; rs2 : reg }
+  | Amo of { op : amo_op; rd : reg; rs1 : reg; rs2 : reg }
   | Illegal of int
 [@@deriving sexp_of, equal]
 
@@ -107,7 +136,7 @@ let imm_j w =
 
 (* [zicsr]: decode the CSR instructions, MRET and WFI (otherwise illegal).
    Whether a CSR address exists is decided by the machine, not here. *)
-let decode ?(zicsr = false) ~base word =
+let decode ?(zicsr = false) ?(m = false) ?(a = false) ~base word =
   let illegal = Illegal word in
   let opcode = bits word ~hi:6 ~lo:0 in
   let rd = bits word ~hi:11 ~lo:7 in
@@ -169,6 +198,34 @@ let decode ?(zicsr = false) ~base word =
        | 0b001, 0b0000000 -> op_imm Sll rs2
        | 0b101, 0b0000000 -> op_imm Srl rs2
        | 0b101, 0b0100000 -> op_imm Sra rs2
+       | _ -> illegal, [])
+    | 0b0110011 when m && funct7 = 1 ->
+      let op =
+        match funct3 with
+        | 0 -> Mul
+        | 1 -> Mulh
+        | 2 -> Mulhsu
+        | 3 -> Mulhu
+        | 4 -> Div
+        | 5 -> Divu
+        | 6 -> Rem
+        | _ -> Remu
+      in
+      Mul_div { op; rd; rs1; rs2 }, [ rd; rs1; rs2 ]
+    | 0b0101111 when a && funct3 = 2 ->
+      let amo op = Amo { op; rd; rs1; rs2 }, [ rd; rs1; rs2 ] in
+      (match funct7 lsr 2 with
+       | 0b00010 when rs2 = 0 -> Lr { rd; rs1 }, [ rd; rs1 ]
+       | 0b00011 -> Sc { rd; rs1; rs2 }, [ rd; rs1; rs2 ]
+       | 0b00001 -> amo Amoswap
+       | 0b00000 -> amo Amoadd
+       | 0b00100 -> amo Amoxor
+       | 0b01100 -> amo Amoand
+       | 0b01000 -> amo Amoor
+       | 0b10000 -> amo Amomin
+       | 0b10100 -> amo Amomax
+       | 0b11000 -> amo Amominu
+       | 0b11100 -> amo Amomaxu
        | _ -> illegal, [])
     | 0b0110011 ->
       let op o = Op { op = o; rd; rs1; rs2 }, [ rd; rs1; rs2 ] in
