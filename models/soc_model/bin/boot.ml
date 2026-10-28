@@ -68,21 +68,27 @@ let () =
         finish ("unhandled trap " ^ Sexp.to_string (Rv32_model.Machine.sexp_of_trap trap));
         Stdlib.exit 1
       | Ok _ ->
-        let out = Soc.output soc in
-        if String.length out > !printed
-        then (
-          Out_channel.output_string stdout (String.drop_prefix out !printed);
-          Out_channel.flush stdout;
-          printed := String.length out);
-        (match !pending with
-         | c :: rest when String.is_suffix out ~suffix:"> " && soc.retired >= !next_key ->
-           Soc.receive soc (String.of_char c);
-           pending := rest;
-           next_key := soc.retired + 20_000
-         | _ -> ());
-        (match !until with
-         | Some u when String.is_substring out ~substring:u -> finish "done"
-         | _ -> go ()))
+        (* Look at the output only when it grew (or a key is due). *)
+        let len = Buffer.length soc.uart.output in
+        let key_due = (not (List.is_empty !pending)) && soc.retired >= !next_key in
+        if len = !printed && not key_due
+        then go ()
+        else (
+          let out = Soc.output soc in
+          if len > !printed
+          then (
+            Out_channel.output_string stdout (String.drop_prefix out !printed);
+            Out_channel.flush stdout;
+            printed := len);
+          (match !pending with
+           | c :: rest when String.is_suffix out ~suffix:"> " && soc.retired >= !next_key ->
+             Soc.receive soc (String.of_char c);
+             pending := rest;
+             next_key := soc.retired + 20_000
+           | _ -> ());
+          match !until with
+          | Some u when String.is_substring out ~substring:u -> finish "done"
+          | _ -> go ()))
   in
   go ()
 ;;
