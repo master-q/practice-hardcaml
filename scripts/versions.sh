@@ -11,6 +11,7 @@ v yosys yosys -V
 v nextpnr-ice40 nextpnr-ice40 --version
 v nextpnr-ecp5 nextpnr-ecp5 --version
 v riscv-none-elf-gcc riscv-none-elf-gcc --version
+v riscv32-linux-gcc riscv32-buildroot-linux-musl-gcc --version
 v ocaml ocaml -version
 v hardcaml sh -c "opam list --installed --short --columns=version hardcaml 2>/dev/null"
 v verilator verilator --version

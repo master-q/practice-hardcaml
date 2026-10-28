@@ -1,0 +1,6 @@
+; The Linux SoC (#21) as a model: memory map, devices, device tree.
+(library
+ (name soc_model)
+ (libraries rv32_model base stdio)
+ (preprocess
+  (pps ppx_jane)))

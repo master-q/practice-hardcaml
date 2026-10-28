@@ -14,7 +14,7 @@ if [ "$(id -u)" -ne 0 ]; then SUDO=sudo; fi
 
 # EDA tools, the RISC-V GCC and the opam packages are pinned (toolchain/,
 # scripts/toolchain.sh); apt only provides what does not affect results.
-pkgs="build-essential m4 pkg-config libffi-dev libgmp-dev libssl-dev zlib1g-dev opam curl jq"
+pkgs="build-essential m4 pkg-config libffi-dev libgmp-dev libssl-dev zlib1g-dev opam curl jq flex bison bc cpio"
 if ! command -v opam >/dev/null || ! command -v curl >/dev/null; then
   $SUDO apt-get update -qq
   DEBIAN_FRONTEND=noninteractive $SUDO apt-get install -y -qq $pkgs

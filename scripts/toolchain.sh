@@ -16,7 +16,7 @@
 #   toolchain.sh key                  print the cache keys (used by CI)
 #
 # Pins: toolchain/oss-cad-suite.conf, toolchain/riscv-gcc.conf,
-# toolchain/opam-packages.txt. OSS_CAD_SUITE_DATE in the environment
+# toolchain/linux-gcc.conf, toolchain/opam-packages.txt. OSS_CAD_SUITE_DATE in the environment
 # selects another OSS CAD Suite release (see scripts/with-toolchain.sh);
 # its checksum is then printed, not verified.
 #
@@ -36,6 +36,10 @@ CAD_DATE=${OSS_CAD_SUITE_DATE:-$pinned_date}
 GCC_VERSION=$(sed -n 's/^RISCV_GCC_VERSION=//p' "$ROOT/toolchain/riscv-gcc.conf")
 GCC_SHA=$(sed -n 's/^RISCV_GCC_SHA256=//p' "$ROOT/toolchain/riscv-gcc.conf")
 
+LGCC_RELEASE=$(sed -n 's/^LINUX_GCC_RELEASE=//p' "$ROOT/toolchain/linux-gcc.conf")
+LGCC_SHA=$(sed -n 's/^LINUX_GCC_SHA256=//p' "$ROOT/toolchain/linux-gcc.conf")
+LGCC_DIR=$TOOLS/$LGCC_RELEASE
+
 CAD_DIR=$TOOLS/oss-cad-suite-$CAD_DATE
 GCC_DIR=$TOOLS/riscv-gcc-$GCC_VERSION
 opam_hash=$(grep -v '^#' "$ROOT/toolchain/opam-packages.txt" | sha256sum | cut -c1-12)
@@ -45,6 +49,9 @@ SWITCH=hc-$OCAML_VERSION-$opam_hash
 cad_url() {
   local d=$1
   echo "https://github.com/YosysHQ/oss-cad-suite-build/releases/download/$d/oss-cad-suite-linux-x64-${d//-/}.tgz"
+}
+lgcc_url() {
+  echo "https://toolchains.bootlin.com/downloads/releases/toolchains/riscv32-ilp32d/tarballs/$LGCC_RELEASE.tar.xz"
 }
 gcc_url() {
   echo "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v$GCC_VERSION/xpack-riscv-none-elf-gcc-$GCC_VERSION-linux-x64.tar.gz"
@@ -75,7 +82,7 @@ unpack() {
   local archive=$1 dir=$2 tmp=$2.tmp
   rm -rf "$tmp"
   mkdir -p "$tmp"
-  tar -xzf "$archive" -C "$tmp"
+  tar -xf "$archive" -C "$tmp"
   mv "$tmp"/* "$dir"
   rmdir "$tmp"
 }
@@ -90,6 +97,11 @@ install_cad() {
 install_gcc() {
   [ -x "$GCC_DIR/bin/riscv-none-elf-gcc" ] && return
   unpack "$(fetch "$(gcc_url)" "$GCC_SHA")" "$GCC_DIR"
+}
+
+install_lgcc() {
+  [ -x "$LGCC_DIR/bin/riscv32-buildroot-linux-musl-gcc" ] && return
+  unpack "$(fetch "$(lgcc_url)" "$LGCC_SHA")" "$LGCC_DIR"
 }
 
 install_opam() {
@@ -112,7 +124,7 @@ install_opam() {
 print_env() {
   cat <<EOF
 export PRACTICE_HARDCAML_HOME='$HOME_DIR'
-export PATH='$CAD_DIR/bin:$GCC_DIR/bin':"\$PATH"
+export PATH='$CAD_DIR/bin:$GCC_DIR/bin:$LGCC_DIR/bin':"\$PATH"
 export OPAMROOT='$OPAM_ROOT_DIR'
 eval "\$(opam env --root='$OPAM_ROOT_DIR' --switch='$SWITCH' --set-root --set-switch 2>/dev/null)"
 EOF
@@ -130,6 +142,10 @@ check() {
     "$GCC_DIR"/bin/*) ;;
     *) echo "toolchain: riscv-none-elf-gcc not from $GCC_DIR" >&2; status=1 ;;
   esac
+  case $(command -v riscv32-buildroot-linux-musl-gcc || true) in
+    "$LGCC_DIR"/bin/*) ;;
+    *) echo "toolchain: riscv32-buildroot-linux-musl-gcc not from $LGCC_DIR" >&2; status=1 ;;
+  esac
   local want have
   want=$(grep -v '^#' "$ROOT/toolchain/opam-packages.txt" | sort)
   have=$(opam list --installed --short --columns=name,version 2>/dev/null | awk '{print $1"."$2}' | sort)
@@ -140,7 +156,7 @@ check() {
     echo "$missing" | sed 's/^/  /' >&2
     status=1
   fi
-  [ $status = 0 ] && echo "OK: toolchain matches the pins (OSS CAD Suite $CAD_DATE, GCC $GCC_VERSION, opam $SWITCH)"
+  [ $status = 0 ] && echo "OK: toolchain matches the pins (OSS CAD Suite $CAD_DATE, GCC $GCC_VERSION, $LGCC_RELEASE, opam $SWITCH)"
   return $status
 }
 
@@ -148,6 +164,7 @@ case ${1:-} in
   install)
     install_cad
     install_gcc
+    install_lgcc
     case ${2:-} in
       --no-opam) ;;
       --dev) install_opam ocaml-lsp-server merlin ocamlformat utop ppx_deriving ;;
@@ -173,6 +190,7 @@ case ${1:-} in
     if [ "$CAD_DATE" = "$pinned_date" ]; then echo "cad=oss-cad-suite-$CAD_DATE-$pinned_sha"
     else echo "cad=oss-cad-suite-$CAD_DATE-unverified"; fi
     echo "gcc=riscv-gcc-$GCC_VERSION-$GCC_SHA"
+    echo "lgcc=$LGCC_RELEASE-$LGCC_SHA"
     echo "opam=opam-$SWITCH"
     ;;
   *)

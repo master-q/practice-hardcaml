@@ -34,7 +34,7 @@ jobs:
       - name: System packages (no EDA tools; those are pinned)
         run: |
           sudo apt-get update
-          sudo apt-get install -y opam libgmp-dev libffi-dev pkg-config
+          sudo apt-get install -y opam libgmp-dev libffi-dev pkg-config flex bison bc cpio
 
       - name: Cache keys
         id: keys
@@ -53,6 +53,13 @@ jobs:
         with:
           path: ${{ env.PRACTICE_HARDCAML_HOME }}/toolchain/riscv-gcc-*
           key: ${{ runner.os }}-${{ steps.keys.outputs.gcc }}
+
+      - name: Restore Linux cross GCC
+        id: lgcc
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.PRACTICE_HARDCAML_HOME }}/toolchain/riscv32-ilp32d--*
+          key: ${{ runner.os }}-${{ steps.keys.outputs.lgcc }}
 
       - name: Restore opam switch
         id: opam
@@ -77,6 +84,13 @@ jobs:
         with:
           path: ${{ env.PRACTICE_HARDCAML_HOME }}/toolchain/riscv-gcc-*
           key: ${{ runner.os }}-${{ steps.keys.outputs.gcc }}
+
+      - name: Save Linux cross GCC
+        if: steps.lgcc.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.PRACTICE_HARDCAML_HOME }}/toolchain/riscv32-ilp32d--*
+          key: ${{ runner.os }}-${{ steps.keys.outputs.lgcc }}
 
       - name: Save opam switch
         if: steps.opam.outputs.cache-hit != 'true'
