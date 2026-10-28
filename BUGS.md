@@ -37,16 +37,33 @@ category, because they cost iterations just the same.
 | Found at | Count |
 |----------|-------|
 | S0 | 0 |
-| S1 | 5 |
+| S1 | 6 |
 | S2 | 0 |
 | S3 | 6 |
 | S4 | 0 |
 
-By class: testbench 5, toolchain 4, model 1, inference 1, resource 1.
+By class: testbench 6, toolchain 4, model 1, inference 1, resource 1.
 No functional defect in the hardware itself has been found yet: the rv32e
 core and the MCU passed lockstep on their first run.
 
 ## Entries
+
+### B-0013: MCU expect tests depended on the cross compiler's version
+
+- Date: 2026-10-28
+- Project: ip/mcu (test)
+- Found at: S1 (maintainer's devcontainer); Catchable at: S1
+- Class: testbench
+- Symptom: `make` failed locally with different retired-instruction and
+  cycle counts (Dhrystone 129582 cycles instead of 128112), while CI and
+  the cloud session passed.
+- Cause: the expectations contained counts that depend on the code gcc
+  generates; the devcontainer image ships a different gcc release than
+  Ubuntu 24.04. The hardware behaved identically (same output, lockstep
+  clean, same CPI 4.25).
+- Fix: expectations hold only hardware-determined facts: program output
+  with numbers masked, LEDs, trap, lockstep result, and the Dhrystone CPI.
+- Regression: `ip/mcu/test/test_mcu.ml`.
 
 ### B-0012: Yosys took 5.5 minutes to read 64 KiB of RAM initial values
 

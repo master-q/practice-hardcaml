@@ -12,14 +12,39 @@ let run config ~image ~input ~cycles =
   Bench.run config sim ~image ~input ~cycles ()
 ;;
 
-let print_result (r : Bench.result) =
-  printf "%S\n" r.output;
+(* Instruction and cycle counts depend on the cross compiler's version
+   (the devcontainer and CI images ship different gcc releases), so the
+   expectations only contain what the hardware determines: the program's
+   output, the LEDs, the trap, lockstep agreement and, for Dhrystone, the
+   CPI. *)
+let print_result ?(mask_numbers = false) (r : Bench.result) =
+  let output =
+    if mask_numbers
+    then (
+      (* Each run of digits becomes one '#'. *)
+      let b = Buffer.create (String.length r.output) in
+      String.iteri r.output ~f:(fun k c ->
+        if not (Char.is_digit c)
+        then Buffer.add_char b c
+        else if k = 0 || not (Char.is_digit r.output.[k - 1])
+        then Buffer.add_char b '#');
+      Buffer.contents b)
+    else r.output
+  in
+  printf "%S\n" output;
   printf
-    "leds=%d retired=%d trap=%s\n%s\n"
+    "leds=%d trap=%s retired>0=%b\n%s\n"
     r.leds
-    r.retired
     (Option.value_map r.trap ~default:"none" ~f:Int.to_string)
+    (r.retired > 0)
     (Option.value r.mismatch ~default:"lockstep: ok")
+;;
+
+(* "dhrystone: runs=N cycles=C instret=I" from the harness. *)
+let dhrystone_counts output =
+  List.find_map (String.split_lines output) ~f:(fun line ->
+    try Some (Stdlib.Scanf.sscanf line "dhrystone: runs=%d cycles=%d instret=%d" (fun r c i -> r, c, i)) with
+    | _ -> None)
 ;;
 
 let%expect_test "iCEstick configuration: RV32E echo firmware, in lockstep" =
@@ -32,7 +57,7 @@ let%expect_test "iCEstick configuration: RV32E echo firmware, in lockstep" =
   [%expect
     {|
     "RV32 MCU ready\r\n> hello\r\nHELLO\r\n> RV32e!\r\nRV32E!\r\n> "
-    leds=6 retired=46207 trap=none
+    leds=6 trap=none retired>0=true
     lockstep: ok
     |}]
 ;;
@@ -42,7 +67,7 @@ let%expect_test "i9 configuration: RV32I echo firmware, in lockstep" =
     (run Bench.i9 ~image:(firmware "echo_rv32i.bin") ~input:"rv32i\r" ~cycles:200_000);
   [%expect {|
     "RV32 MCU ready\r\n> rv32i\r\nRV32I\r\n> "
-    leds=5 retired=46184 trap=none
+    leds=5 trap=none retired>0=true
     lockstep: ok
     |}]
 ;;
@@ -51,10 +76,15 @@ let%expect_test "i9 configuration: Dhrystone (50 runs), in lockstep" =
   let r =
     run Bench.i9 ~image:(firmware "dhrystone_sim.bin") ~input:"" ~cycles:3_000_000
   in
-  print_result r;
+  print_result ~mask_numbers:true r;
+  (match dhrystone_counts r.output with
+   | Some (runs, cycles, instret) ->
+     printf "runs=%d CPI=%.2f\n" runs (Float.of_int cycles /. Float.of_int instret)
+   | None -> print_endline "no dhrystone line");
   [%expect {|
-    "dhrystone: runs=50 cycles=128112 instret=30138\r\ndhrystone: DMIPS/MHz=0.222\r\nMicroseconds for one run through Dhrystone: 2560\r\nDhrystones per Second:                      390\r\n"
-    leds=0 retired=48211 trap=2
+    "dhrystone: runs=# cycles=# instret=#\r\ndhrystone: DMIPS/MHz=#.#\r\nMicroseconds for one run through Dhrystone: #\r\nDhrystones per Second:                      #\r\n"
+    leds=0 trap=2 retired>0=true
     lockstep: ok
+    runs=50 CPI=4.25
     |}]
 ;;

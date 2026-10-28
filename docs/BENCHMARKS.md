@@ -35,7 +35,11 @@ Notes:
 
 `sw/dhrystone_sim.bin`: Dhrystone 2.2 from riscv-tests, 50 runs, built
 once with `riscv64-unknown-elf-gcc -O2 -march=rv32i -mabi=ilp32`
-(multiply and divide from libgcc). The binary is identical for every core,
+(multiply and divide from libgcc), gcc 13.2.0 as shipped with Ubuntu 24.04
+(the cloud sessions and CI). Other gcc releases generate different code:
+the devcontainer's gcc retires about 1% more instructions (30,481 instead
+of 30,138 in the timed loop) and scores 0.219; the CPI (4.25) is the same.
+Compare cores only with the same binary. The binary is identical for every core,
 so every core retires the same instructions (about 30,100 in the timed loop);
 only the cycle count differs. Our core runs in Cyclesim in lockstep with
 the golden model (`ip/mcu/test/test_mcu.ml`); the reference cores run in
