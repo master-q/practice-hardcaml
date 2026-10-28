@@ -13,14 +13,14 @@
       ]
     }
   },
-  "initializeCommand": "mkdir -p \"${localEnv:HOME}/.practice-hardcaml\"",
+  "initializeCommand": "mkdir -p \"${localEnv:HOME}/practice-hardcaml\"",
   "mounts": [
     "source=${localEnv:HOME}/claude/dot.claude,target=/home/vscode/.claude,type=bind",
     "source=${localEnv:HOME}/claude/per-clone/${localWorkspaceFolderBasename}/dot.claude.json,target=/home/vscode/.claude.json,type=bind",
     "source=${localEnv:HOME}/opencode/dot.share,target=/home/vscode/.local/share/opencode,type=bind",
     "source=${localEnv:HOME}/opencode/dot.state,target=/home/vscode/.local/state/opencode,type=bind",
     "source=${localEnv:HOME}/github/dot.config-gh-master-q,target=/home/vscode/.config/gh,type=bind",
-    "source=${localEnv:HOME}/.practice-hardcaml,target=/home/vscode/.practice-hardcaml,type=bind"
+    "source=${localEnv:HOME}/practice-hardcaml,target=/home/vscode/.practice-hardcaml,type=bind"
   ],
   "runArgs": [
     "-v",
