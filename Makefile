@@ -17,6 +17,7 @@
 #   make arch-test  riscv-arch-test RV32I on the core, M on the golden model
 #   make riscv-tests riscv-tests (ui/um/ua p and v, mi, si; self-checking) on the golden
 #                   model (fetches them once; #25)
+#   make linux-model Linux + the REPL booted on the golden SoC model (#25)
 #   make ci         everything above, including verilate and icebram-check
 #
 # The RV32E MCU on an iCEstick (S4, by hand):
@@ -87,6 +88,10 @@ netlist-sim-i9:
 arch-test:
 	$(MAKE) --no-print-directory -C bench/arch_test run
 
+# Linux on the golden SoC model (#25): kernel, REPL, boot ROM, device tree.
+linux-model:
+	$(MAKE) --no-print-directory -C sw/linux model
+
 riscv-tests:
 	$(MAKE) --no-print-directory -C bench/riscv_tests run
 
@@ -97,7 +102,7 @@ board-sim-i9:
 names:
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p names || exit 1; done
 
-ci: langcheck selftest test arch-test riscv-tests board-sim netlist-sim netlist-sim-i9 board-sim-i9 verilate synth names icebram-check ecpbram-check
+ci: langcheck selftest test arch-test riscv-tests linux-model board-sim netlist-sim netlist-sim-i9 board-sim-i9 verilate synth names icebram-check ecpbram-check
 
 mcu:
 	$(MAKE) -C designs/mcu
@@ -127,4 +132,4 @@ clean:
 	dune clean
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p clean; done
 
-.PHONY: versions arch-test riscv-tests board-sim board-sim-i9 netlist-sim netlist-sim-i9 mcu mcu-prog mcu-term i9 i9-prog i9-term ecpbram-check icebram-check all setup langcheck selftest test verilate synth names ci clean
+.PHONY: versions arch-test riscv-tests linux-model board-sim board-sim-i9 netlist-sim netlist-sim-i9 mcu mcu-prog mcu-term i9 i9-prog i9-term ecpbram-check icebram-check all setup langcheck selftest test verilate synth names ci clean

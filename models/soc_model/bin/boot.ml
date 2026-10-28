@@ -5,8 +5,9 @@
    The flash image gets the DTB and the kernel Image at Soc_map's offsets;
    the boot ROM starts at 0. UART output is printed as it appears. Stops
    at an unhandled trap, after N instructions (default 2e9), or once the
-   output contains TEXT (--until); --input is typed once the output ends
-   with "> " (the REPL prompt), one character per 20,000 instructions. *)
+   output contains TEXT (--until). --input is typed line by line: when the
+   output ends with "> " (the REPL prompt), the next line up to and
+   including its \r is typed, one character per 20,000 instructions. *)
 open! Base
 open Stdio
 module Soc = Soc_model.Soc
@@ -46,6 +47,7 @@ let () =
   let printed = ref 0 in
   let pending = ref (String.to_list !input) in
   let next_key = ref 0 in
+  let typing = ref false (* inside a line, after its prompt *) in
   let t0 = Unix.gettimeofday () in
   let finish msg =
     let dt = Unix.gettimeofday () -. t0 in
@@ -70,7 +72,7 @@ let () =
       | Ok _ ->
         (* Look at the output only when it grew (or a key is due). *)
         let len = Buffer.length soc.uart.output in
-        let key_due = (not (List.is_empty !pending)) && soc.retired >= !next_key in
+        let key_due = !typing && (not (List.is_empty !pending)) && soc.retired >= !next_key in
         if len = !printed && not key_due
         then go ()
         else (
@@ -80,11 +82,13 @@ let () =
             Out_channel.output_string stdout (String.drop_prefix out !printed);
             Out_channel.flush stdout;
             printed := len);
+          if (not !typing) && len > 0 && String.is_suffix out ~suffix:"> " then typing := true;
           (match !pending with
-           | c :: rest when String.is_suffix out ~suffix:"> " && soc.retired >= !next_key ->
+           | c :: rest when !typing && soc.retired >= !next_key ->
              Soc.receive soc (String.of_char c);
              pending := rest;
-             next_key := soc.retired + 20_000
+             next_key := soc.retired + 20_000;
+             if Char.equal c '\r' then typing := false
            | _ -> ());
           match !until with
           | Some u when String.is_substring out ~substring:u -> finish "done"

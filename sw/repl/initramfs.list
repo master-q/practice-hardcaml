@@ -1,0 +1,5 @@
+# gen_init_cpio list for the Linux SoC's initramfs (#21, #24): the REPL is
+# init; the kernel opens /dev/console for it.
+dir /dev 755 0 0
+nod /dev/console 600 0 0 c 5 1
+file /init @REPL@ 755 0 0

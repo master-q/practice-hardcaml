@@ -3,6 +3,34 @@
 A dated log of the project, newest entry first. Each entry records what was
 done, what was learned, and the numbers measured that day.
 
+## 2026-10-29: Linux plan (#21) and L0 on the golden model (#25)
+
+- Maintainer decisions for #21: MMU (Sv32, S-mode Linux), own M-mode boot
+  stub instead of OpenSBI, UART with interrupts (16550 + PLIC), DTB at a
+  fixed offset in the flash read in place, no XIP, a C REPL as the only
+  user program (shared with Takibi for benchmarks). Child issues #24-#29;
+  closed #13, #15, #17.
+- rv32_model: M, A, Zifencei, S/U modes with delegation, S-mode CSRs,
+  SRET, SFENCE.VMA, Sstc, counter enables, Sv32 with Svade, PMP/trigger
+  CSRs reading zero, RAM at a configurable base. Behaviour without the new
+  flags unchanged (all core lockstep suites pass).
+- Independent checks: riscv-arch-test M 8/8 on the model; riscv-tests
+  139/139 on the model (rv32ui/um/ua in p and v environments, rv32mi,
+  rv32si; ma_data and pmpaddr skipped with reasons).
+- Toolchain: Linux 6.18.59 LTS and Bootlin riscv32 musl GCC 15.3.0 pinned
+  (the bare-metal xPack GCC cannot link the kernel's vDSO); flex, bison,
+  bc, cpio from apt.
+- models/soc_model: Soc_map (single source for the memory map), CLINT,
+  PLIC, 16550 models, device tree and C header generated from it.
+  sw/linux/boot: 316-byte boot ROM with the M-mode stub; sw/repl: 9.8 KB
+  REPL on nolibc.
+- Result (`make linux-model`, in CI): the model boots Linux to the REPL and
+  the REPL answers. Every L0 question answered: SBI base + Sstc is
+  enough; the DTB in the flash window works; Svade works; a Linux GCC is
+  needed for the kernel; the boot to init takes 30.6M instructions
+  (35M with five REPL commands), the kernel 2.2 MB, 5.5 MB of 8 MB RAM
+  free. The model runs at about 4 MIPS (boot to the REPL in 9 s).
+
 ## 2026-10-29: i9 system clock 50 MHz from the PLL
 
 - The maintainer asked to measure performance as DMIPS (CPI x Fmax) and to

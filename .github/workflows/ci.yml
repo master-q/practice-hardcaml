@@ -99,6 +99,12 @@ jobs:
           path: ${{ env.PRACTICE_HARDCAML_HOME }}/opam
           key: ${{ runner.os }}-${{ steps.keys.outputs.opam }}
 
+      - name: Linux kernel source
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.PRACTICE_HARDCAML_HOME }}/downloads/linux-*.tar.xz
+          key: ${{ runner.os }}-linux-${{ hashFiles('toolchain/linux.conf') }}
+
       - name: Dune cache and riscv-arch-test sources
         uses: actions/cache@v4
         with:
