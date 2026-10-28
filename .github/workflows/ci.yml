@@ -3,6 +3,7 @@ name: ci
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 # The toolchain is pinned in toolchain/ and installed by scripts/toolchain.sh
 # under ~/.practice-hardcaml (issues #11, #12). Each part is cached under a
