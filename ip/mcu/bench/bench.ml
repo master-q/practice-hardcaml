@@ -13,10 +13,10 @@ let clocks_per_bit = 4
 
 (* Simulation configurations: the boards' ISA and RAM, a fast UART. *)
 let icestick =
-  { Mcu.Config.base = Rv32e; ram_bytes = 4096; clocks_per_bit; counters = false; zicsr = false; dual_read = false; fetch_overlap = false }
+  { Mcu.Config.base = Rv32e; ram_bytes = 4096; clocks_per_bit; counters = false; zicsr = false; dual_read = false; fetch_overlap = false; ma = false }
 ;;
 
-let i9 = { Mcu.Config.base = Rv32i; ram_bytes = 65536; clocks_per_bit; counters = false; zicsr = true; dual_read = true; fetch_overlap = true }
+let i9 = { Mcu.Config.base = Rv32i; ram_bytes = 65536; clocks_per_bit; counters = false; zicsr = true; dual_read = true; fetch_overlap = true; ma = true }
 let create config scope = Mcu.create config scope
 
 let words_of_image image =
@@ -67,6 +67,8 @@ let run
     Rv32_bench.Lockstep.create
       ~is_io:(fun a -> a land 0x1000_0000 <> 0)
       ~zicsr:config.zicsr
+      ~m:config.ma
+      ~a:config.ma
       ~base:config.base
       ~mem_bytes:config.ram_bytes
       ~program

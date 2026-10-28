@@ -21,7 +21,9 @@
    Execute if the reservation holds for its address (rd = 0) and
    otherwise only sets rd = 1; every SC.W and every trap or interrupt
    entry clears the reservation, as in Rv32_model.Machine. AMOs read in
-   Execute and write in Amo. FENCE.I ([~zifencei]) is a no-op (no
+   Execute, register the old value in Amo and compute and write in
+   Amo_write (block RAM output -> ALU -> block RAM input in one cycle
+   missed 50 MHz, B-0024). FENCE.I ([~zifencei]) is a no-op (no
    caches).
 
    Memory bus: [mem_addr] with [mem_read] or [mem_write] is valid for one
@@ -113,6 +115,7 @@ module State = struct
     | Mul
     | Div
     | Amo
+    | Amo_write
     | Halted
   [@@deriving sexp_of, compare ~localize, enumerate]
 end
@@ -359,10 +362,11 @@ let create
   let%hw_var reservation_valid = Always.Variable.reg ~width:1 spec in
   let%hw_var reservation_addr = Always.Variable.reg ~width:32 spec in
   let%hw sc_ok = reservation_valid.value &: (reservation_addr.value ==: agu) in
+  let%hw_var amo_old = Always.Variable.reg ~width:32 spec in
   let%hw amo_new =
     if ext_a
     then (
-      let old = i.mem_rdata in
+      let old = amo_old.value in
       let lt_s = old <+ b
       and lt_u = old <: b in
       mux
@@ -583,10 +587,11 @@ let create
                       ]
                   ]
               ] )
-          ; ( Amo
+          ; Amo, [ amo_old <-- i.mem_rdata; sm.set_next Amo_write ]
+          ; ( Amo_write
             , [ writes_rd <-- vdd
               ; mem_write <-- vdd
-              ; proc (complete ~result:i.mem_rdata ~next:pc_plus4)
+              ; proc (complete ~result:amo_old.value ~next:pc_plus4)
               ] )
           ; Halted, []
           ]
@@ -600,7 +605,7 @@ let create
   { O.mem_addr
   ; mem_read = mem_read.value
   ; mem_write = mem_write.value
-  ; mem_wdata = mux2 (sm.is Amo) amo_new store_data
+  ; mem_wdata = mux2 (sm.is Amo_write) amo_new store_data
   ; mem_wmask = store_mask
   ; halted = sm.is Halted
   ; trap = trap.value
@@ -613,7 +618,7 @@ let create
   ; retire_mem_we = mem_write.value
   ; retire_mem_addr = agu
   ; retire_mem_size = size
-  ; retire_mem_value = mux2 (sm.is Amo) amo_new b
+  ; retire_mem_value = mux2 (sm.is Amo_write) amo_new b
   ; retire_next_pc = retire_next_pc.value
   ; retire_trap = retire_trap.value
   ; retire_cause = retire_cause.value

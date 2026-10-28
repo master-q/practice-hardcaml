@@ -241,6 +241,30 @@ let create_fn ?(inits = ref []) (m : Netlist.Module.t) (inputs : (string * Signa
         | "LOCK", [ (Bit.Index _ as b) ] -> drive b vdd
         | _, [ Bit.Index _ ] -> Ice40_cells.unsupported "EHXPLLL output %s used" o.name
         | _ -> ())
+    | "MULT18X18D" ->
+      let pins prefix n =
+        concat_lsb (List.init n ~f:(fun k -> port ~default:gnd (prefix ^ Int.to_string k)))
+      in
+      let p =
+        Ecp5_cells.mult18x18d
+          cell
+          ~a:(pins "A" 18)
+          ~b:(pins "B" 18)
+          ~signed_a:(port ~default:gnd "SIGNEDA")
+          ~signed_b:(port ~default:gnd "SIGNEDB")
+          ~source_a:(port ~default:gnd "SOURCEA")
+          ~source_b:(port ~default:gnd "SOURCEB")
+      in
+      for k = 0 to 35 do
+        match List.find cell.outputs ~f:(fun o -> String.equal o.name (Printf.sprintf "P%d" k)) with
+        | Some { value = [ (Bit.Index _ as b) ]; _ } -> drive b p.:(k)
+        | _ -> ()
+      done;
+      List.iter cell.outputs ~f:(fun o ->
+        match o.value with
+        | [ Bit.Index _ ] when not (String.is_prefix o.name ~prefix:"P") ->
+          Ice40_cells.unsupported "MULT18X18D output %s used" o.name
+        | _ -> ())
     | "VLO" -> out1 "Z" gnd
     | "VHI" -> out1 "Z" vdd
     | "$scopeinfo" ->

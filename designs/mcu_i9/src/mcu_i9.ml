@@ -37,6 +37,7 @@ let config =
   ; zicsr = true
   ; dual_read = true
   ; fetch_overlap = true
+  ; ma = true
   }
 ;;
 

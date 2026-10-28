@@ -52,7 +52,8 @@ Icarus Verilog with a memory of the same latency as our block RAM
 | PicoRV32 | zero wait (best case) | 2464 | 0.231 | 4.09 |
 | **rv32 (this repo, RV32I)** | 1-cycle read latency (BRAM) | **2562** | **0.222** | **4.25** |
 | rv32, Zicsr + dual register-file read (#4 step 1) | 1-cycle read latency (BRAM) | 1898 | 0.299 | 3.26 |
-| **rv32, i9 configuration (+ fetch overlap, #4 step 2)** | 1-cycle read latency (BRAM) | **1535** | **0.370** | **2.64** |
+| rv32, + fetch overlap (#4 step 2) | 1-cycle read latency (BRAM) | 1535 | 0.370 | 2.64 |
+| **rv32, i9 configuration (+ M and A, #5; rv32im binary)** | 1-cycle read latency (BRAM) | **1478** | **0.385** | **2.69** |
 | PicoRV32 | 1-cycle read latency | 3317 | 0.172 | 5.50 |
 
 DMIPS/MHz = 1e6 / (cycles per run x 1757), rounded here; the firmware
@@ -85,8 +86,11 @@ cores with the pinned toolchain is still to do.
   prediction) saves the Fetch cycle of every instruction that does not
   use the memory bus: CPI 3.26 -> 2.64, 0.370 DMIPS/MHz, for 186 more
   cells (2688 -> 2874), Fmax 57 -> 54 MHz.
-- The i9 runs at 50 MHz from the PLL (estimated Fmax 54 MHz): 0.370 x
-  50 = 18.5 DMIPS. Further work on the CPI x Fmax trade-off: issue #23.
+- With M (#5) the binary uses MUL/DIV instead of libgcc loops: 6% fewer
+  instructions, slightly higher CPI (multi-cycle multiply and divide),
+  0.385 DMIPS/MHz.
+- The i9 runs at 50 MHz from the PLL (estimated Fmax 52.8 MHz): 0.385 x
+  50 = 19.3 DMIPS. Further work on the CPI x Fmax trade-off: issue #23.
 
 ## Full designs (place and route)
 

@@ -7,10 +7,11 @@ EXPECT_BRAM := 32
 # 2026-10-29, pinned toolchain: 1438 without Zicsr, 2516 with Zicsr,
 # interrupts and the timer (#3), MMIO CYCLE/INSTRET dropped (the CSRs
 # replace them); 2766 with the second register-file copy (#4); 2874 with
-# the fetch overlap (#4). The
+# the fetch overlap (#4); 3981 with M and A (#5: multiplier adders,
+# divider, AMO unit; 4 MULT18X18D). The
 # LFE5U-45F has 43,848 LUTs.
 # Raise deliberately and note why in HISTORY.md.
-MAX_LC := 3200
+MAX_LC := 4500
 FIRMWARE := sw/dhrystone_rv32i.bin
 # The board simulation runs the 50-run image (the 500-run one takes minutes).
 BOARD_SIM_FIRMWARE := sw/dhrystone_sim.bin

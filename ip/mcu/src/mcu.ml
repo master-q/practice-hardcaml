@@ -40,6 +40,7 @@ module Config = struct
     ; zicsr : bool (* CSRs, traps, interrupts and their sources (#3) *)
     ; dual_read : bool (* second register-file copy, 3-cycle ALU ops (#4) *)
     ; fetch_overlap : bool (* fetch the next instruction in Execute (#4) *)
+    ; ma : bool (* M and A extensions, FENCE.I (#5) *)
     }
 
   let ram_words t = t.ram_bytes / 4
@@ -88,6 +89,9 @@ let create (config : Config.t) scope (i : _ I.t) =
       ~zicsr:config.zicsr
       ~dual_read:config.dual_read
       ~fetch_overlap:config.fetch_overlap
+      ~m:config.ma
+      ~a:config.ma
+      ~zifencei:config.ma
       ~base:config.base
       scope
       { Rv32.Core.I.clock = i.clock; clear; mem_rdata; irq }

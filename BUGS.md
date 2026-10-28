@@ -85,6 +85,22 @@ core and the MCU passed lockstep on their first run.
 
 ## Entries
 
+### B-0024: AMO read-modify-write in one cycle missed the 50 MHz target
+
+- Date: 2026-10-29
+- Project: ip/rv32 (core, A extension)
+- Found at: S3 (nextpnr: 45.55 MHz, FAIL at 50 MHz; the build stopped);
+  Catchable at: S3
+- Class: timing (critical path)
+- Symptom: the first i9 build with M and A failed timing.
+- Cause: in the Amo state the block RAM output (5.6 ns clock-to-out)
+  went through the AMO ALU (an adder for AMOADD, comparators for
+  MIN/MAX) and straight back into the block RAM's write data.
+- Fix: register the old value (Amo), compute and write in a new state
+  (Amo_write); one more cycle per AMO. 52.81 MHz.
+- Regression: the timing check itself (the build fails below the target,
+  #15); lockstep and riscv-tests cover the extra state.
+
 ### B-0023: i9 start-up hold would be skipped: Yosys chose a power-up-1 flip-flop
 
 - Date: 2026-10-29

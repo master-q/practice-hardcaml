@@ -257,3 +257,21 @@ module Dp16kd = struct
       , Array.init 1024 ~f:(fun w -> Bits.bit rows.(w / 16) ((20 * (w % 16)) + j)) ))
   ;;
 end
+
+(* MULT18X18D as Yosys's synth_ecp5 uses it: all registers bypassed
+   (every REG_* parameter at its default "NONE"), no cascade (SOURCEA/B =
+   0); SIGNEDA/SIGNEDB select signed or unsigned 18-bit operands.
+   P[35:0] = A * B. Other configurations raise [Unsupported]. *)
+let mult18x18d (cell : Cell.t) ~a ~b ~signed_a ~signed_b ~source_a ~source_b =
+  List.iter cell.parameters ~f:(fun p ->
+    let name = Parameter_name.to_string p.name in
+    if String.is_prefix name ~prefix:"REG_"
+    then (
+      match p.value with
+      | String v when String.equal (String.strip v) "NONE" -> ()
+      | _ -> unsupported "MULT18X18D %s" name));
+  if not (Dp16kd.is_gnd source_a && Dp16kd.is_gnd source_b)
+  then unsupported "MULT18X18D cascade (SOURCEA/SOURCEB)";
+  let ext s x = mux2 s (msb x) gnd @: x in
+  (ext signed_a a *+ ext signed_b b).:[35, 0]
+;;

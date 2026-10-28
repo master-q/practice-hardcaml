@@ -3,6 +3,23 @@
 A dated log of the project, newest entry first. Each entry records what was
 done, what was learned, and the numbers measured that day.
 
+## 2026-10-29: M and A extensions in the core (#5, Linux L1)
+
+- Decoder: M, A, FENCE.I behind flags; checked against the model on 1.67M
+  words (all A funct5 codes with aq/rl now in the exhaustive part).
+- Core: multiply in one extra cycle (33 x 33 product registered, 4
+  MULT18X18D on the ECP5), restoring divide (32 cycles), LR as a load
+  with a reservation, SC in Execute, AMO read / register / write. Core
+  ~reset_pc for tests linked at 0x8000_0000.
+- Checks: random lockstep with M/A and random interrupts (0 failures),
+  riscv-arch-test M 8/8 on the core, riscv-tests rv32ui/um/ua 59/59 on the
+  core in lockstep with the model. testlib/netlist: MULT18X18D model,
+  checked against RTL (3000 random products, 0 mismatches).
+- B-0024 (S3): the one-cycle AMO read-modify-write missed 50 MHz (45.6
+  MHz); fixed with an extra state, 52.8 MHz.
+- i9: 3981 TRELLIS_COMB (budget 4500), Dhrystone 0.385 DMIPS/MHz (19.3
+  DMIPS at 50 MHz), CPI 2.69.
+
 ## 2026-10-29: Linux plan (#21) and L0 on the golden model (#25)
 
 - Maintainer decisions for #21: MMU (Sv32, S-mode Linux), own M-mode boot

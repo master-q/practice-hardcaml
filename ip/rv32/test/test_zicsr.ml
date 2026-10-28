@@ -305,6 +305,6 @@ let%expect_test "random programs with CSRs and interrupts" =
     Rv32i: 300 programs, 49918 instructions, 1682 interrupts, 0 failures
     Rv32i: 300 programs, 49569 instructions, 1594 interrupts, 0 failures
     Rv32i: 300 programs, 48529 instructions, 1335 interrupts, 0 failures
-    Rv32i: 300 programs, 50458 instructions, 1628 interrupts, 0 failures
+    Rv32i: 300 programs, 50415 instructions, 1617 interrupts, 0 failures
     |}]
 ;;
