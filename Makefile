@@ -9,7 +9,7 @@
 #   make ci         everything above, including verilate
 # Flash a project with `make -C <project> prog` (stage 4, by hand).
 
-BOARD_PROJECTS := blink uart
+BOARD_PROJECTS := designs/blink designs/hello
 
 all: setup langcheck test synth names
 

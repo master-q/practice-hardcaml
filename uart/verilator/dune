@@ -1,5 +1,0 @@
-(executable
- (name main)
- (libraries uart uart_bench hardcaml hardcaml_verilator stdio)
- (preprocess
-  (pps ppx_jane)))

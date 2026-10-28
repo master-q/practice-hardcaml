@@ -1,0 +1,4 @@
+; Helpers shared by the tests of every project.
+(library
+ (name testlib)
+ (libraries base stdio hardcaml hardcaml_waveterm hardcaml_verilator))

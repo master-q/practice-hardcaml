@@ -1,0 +1,6 @@
+(library
+ (name rv32e_test)
+ (inline_tests)
+ (libraries rv32e rv32e_bench rv32_model hardcaml hardcaml_verify)
+ (preprocess
+  (pps ppx_jane ppx_expect)))

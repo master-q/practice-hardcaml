@@ -1,0 +1,5 @@
+(executable
+ (name main)
+ (libraries hello hello_bench uart uart_bench testlib hardcaml hardcaml_verilator stdio)
+ (preprocess
+  (pps ppx_jane)))

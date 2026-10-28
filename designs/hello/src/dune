@@ -1,0 +1,5 @@
+(library
+ (name hello)
+ (libraries uart hardcaml)
+ (preprocess
+  (pps ppx_hardcaml ppx_jane)))
