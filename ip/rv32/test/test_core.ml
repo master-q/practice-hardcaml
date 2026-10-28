@@ -93,8 +93,10 @@ let%expect_test "lockstep reports a divergence" =
   print_endline (Option.value r.mismatch ~default:"no mismatch");
   [%expect {|
     retire #0 differs
-      core:  ((pc 0) (insn 5243027) (rd_write ((1 5))) (mem_write ()) (next_pc 4))
-      model: ((pc 0) (insn 6291603) (rd_write ((1 6))) (mem_write ()) (next_pc 4))
+      core:  ((pc 0) (insn 5243027) (rd_write ((1 5))) (mem_write ()) (next_pc 4)
+     (trap ()))
+      model: ((pc 0) (insn 6291603) (rd_write ((1 6))) (mem_write ()) (next_pc 4)
+     (trap ()))
     |}]
 ;;
 
