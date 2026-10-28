@@ -10,9 +10,10 @@
 #   make names      naming discipline on the generated Verilog
 #   make langcheck  ASCII-only policy on all tracked files
 #   make selftest   negative tests for the checks themselves
-#   make netlist-sim the S1 MCU bench (lockstep) and the iCEstick board top
-#                   (firmware in BRAM INIT) on the Yosys iCE40 netlist read
-#                   back into HardCaml (post-synthesis stage, #20)
+#   make netlist-sim the S1 MCU bench (lockstep) on the Yosys iCE40 and ECP5
+#                   netlists read back into HardCaml, and the iCEstick board
+#                   top (firmware in BRAM INIT) (post-synthesis stage S2n);
+#                   netlist-sim-i9 does the i9 board top (slow, in ci)
 #   make arch-test  riscv-arch-test RV32I suite on the core (fetches it once)
 #   make ci         everything above, including verilate and icebram-check
 #
@@ -64,12 +65,20 @@ board-sim:
 # every LUT complemented the bench must fail.
 NETLIST_EXE := _build/default/ip/mcu/netlist/main.exe
 netlist-sim:
-	dune build ./ip/mcu/netlist/main.exe ./sw/echo_rv32e.bin
+	dune build ./ip/mcu/netlist/main.exe ./sw/echo_rv32e.bin ./sw/irq_rv32i.bin
 	$(NETLIST_EXE) _build/default/sw/echo_rv32e.bin build/netlist_sim
 	@if $(NETLIST_EXE) --invert-luts _build/default/sw/echo_rv32e.bin build/netlist_sim >/dev/null 2>&1; \
 	  then echo "FAIL: netlist-sim accepted a netlist with inverted LUTs" >&2; exit 1; \
 	  else echo "OK: netlist-sim rejects a netlist with inverted LUTs"; fi
 	$(MAKE) --no-print-directory -C designs/mcu netlist-sim
+	$(NETLIST_EXE) --ecp5 _build/default/sw/irq_rv32i.bin build/netlist_sim_ecp5
+	@if $(NETLIST_EXE) --ecp5 --invert-luts _build/default/sw/irq_rv32i.bin build/netlist_sim_ecp5 >/dev/null 2>&1; \
+	  then echo "FAIL: ECP5 netlist-sim accepted a netlist with inverted LUTs" >&2; exit 1; \
+	  else echo "OK: ECP5 netlist-sim rejects a netlist with inverted LUTs"; fi
+
+# The i9 board-level netlist runs the full start-up hold (about a minute).
+netlist-sim-i9:
+	$(MAKE) --no-print-directory -C designs/mcu_i9 netlist-sim
 
 # riscv-arch-test (RV32I, reference signatures) on the core; fetches the
 # tests on first use. Issue #17.
@@ -83,7 +92,7 @@ board-sim-i9:
 names:
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p names || exit 1; done
 
-ci: langcheck selftest test arch-test board-sim netlist-sim board-sim-i9 verilate synth names icebram-check ecpbram-check
+ci: langcheck selftest test arch-test board-sim netlist-sim netlist-sim-i9 board-sim-i9 verilate synth names icebram-check ecpbram-check
 
 mcu:
 	$(MAKE) -C designs/mcu
@@ -113,4 +122,4 @@ clean:
 	dune clean
 	@for p in $(BOARD_PROJECTS); do $(MAKE) --no-print-directory -C $$p clean; done
 
-.PHONY: versions arch-test board-sim board-sim-i9 netlist-sim mcu mcu-prog mcu-term i9 i9-prog i9-term ecpbram-check icebram-check all setup langcheck selftest test verilate synth names ci clean
+.PHONY: versions arch-test board-sim board-sim-i9 netlist-sim netlist-sim-i9 mcu mcu-prog mcu-term i9 i9-prog i9-term ecpbram-check icebram-check all setup langcheck selftest test verilate synth names ci clean

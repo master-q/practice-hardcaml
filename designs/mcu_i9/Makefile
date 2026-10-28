@@ -13,4 +13,6 @@ MAX_LC := 3200
 FIRMWARE := sw/dhrystone_rv32i.bin
 # The board simulation runs the 50-run image (the 500-run one takes minutes).
 BOARD_SIM_FIRMWARE := sw/dhrystone_sim.bin
+# The post-synthesis board stage runs the interrupt test (sw/irq).
+NETLIST_SIM_FIRMWARE := sw/irq_rv32i.bin
 include ../../mk/ecp5.mk

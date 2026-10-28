@@ -13,15 +13,12 @@ module tb;
   wire uart_tx, led_n;
   top dut (.clock(clock), .uart_rx(uart_rx), .uart_tx(uart_tx), .led_n(led_n));
 
-  // ECP5 flip-flops power up as 0 (HardCaml v0.17 cannot express initial
-  // register values). The start-up hold counter would also start at 0; it
-  // starts near the end of the hold here to save simulation time (the
-  // iCEstick board-sim runs the full hold).
-  initial begin
-    dut.boot_count = 20'h7ff00;
-    dut.blink = 0;
-    dut.mcu.por_count = 0;
-  end
+  // The registers without a reset start at 0 from the generator's
+  // `initial` statements (ip/mcu/gen, B-0023). The start-up hold counter
+  // is then moved near the end of the hold to save simulation time (the
+  // iCEstick board-sim and the i9 netlist stage run the full hold); #1
+  // orders this after the generated initial value.
+  initial #1 dut.boot_count = 20'h7ff00;
 
   integer i, newlines = 0;
   reg [7:0] byte_in;

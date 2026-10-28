@@ -78,9 +78,9 @@ or from the golden model), as done in `rv32_model/test`.
 | S2 | the same benches on Verilator | `make verilate` | before pushing; in CI |
 | S1 | riscv-arch-test RV32I (independent reference signatures) on the core, lockstep | `make arch-test` | in CI |
 | S2b | the generated board Verilog with firmware, four-state, pin-level UART (Icarus) | `make board-sim` | every change |
-| S2n | post-synthesis: the Yosys iCE40 netlist read back into HardCaml (`hardcaml_of_verilog`, iCE40 cell models in `testlib/netlist`); the MCU bench in lockstep, and the board top with the firmware only in BRAM INIT | `make netlist-sim` | every change |
+| S2n | post-synthesis: the Yosys iCE40 and ECP5 netlists read back into HardCaml (`hardcaml_of_verilog`, cell models in `testlib/netlist`); the MCU benches in lockstep (iCEstick echo, i9 interrupt test), and the board tops with the firmware only in block RAM initial values and the full start-up hold | `make netlist-sim` (i9 board top: `make netlist-sim-i9`) | every change (i9 board top: in CI) |
 | S3 | Yosys + nextpnr (LCs, Fmax), expected BRAM count, naming check | `make synth names` | every change |
-| S4 | iCEstick | `make -C <project> prog` | milestones, by hand |
+| S4 | iCEstick (frozen), Colorlight i9 | `make mcu-prog`, `make i9-prog` | milestones, by hand |
 
 Two axes run in parallel from the first module:
 
@@ -106,15 +106,21 @@ The usual FPGA ladder simulates the RTL, the post-synthesis netlist and
 the placed-and-routed netlist with cell delays (issue #19). Here:
 
 - RTL: S1, S2, S2b.
-- Post-synthesis: S2n, inside the HardCaml ecosystem. Yosys's netlist
-  becomes a HardCaml circuit, so the same OCaml benches (including
-  lockstep against the golden model) run on it in Cyclesim. Each iCE40
-  cell model is checked against the RTL of a small design in every block
-  RAM port width, and complementing every LUT must make the stage fail.
-  Two-state only: X propagation stays with S2b.
-- Post-route with delays: not simulated. The design has one clock and
+- Post-synthesis: S2n, inside the HardCaml ecosystem, for both families
+  (`synth_ice40`, `synth_ecp5`). Yosys's netlist becomes a HardCaml
+  circuit, so the same OCaml benches (including lockstep against the
+  golden model) run on it in Cyclesim. Each cell model is checked against
+  the RTL of a small design in every block RAM port width (ECP5 also with
+  initial contents read back, because Yosys ships no DP16KD model), and
+  complementing every LUT must make the stage fail. Flip-flops start at
+  the value the cell model gives them (iCE40: 0; ECP5: their set/reset
+  value), so power-up assumptions are tested too (B-0023). Two-state
+  only: X propagation stays with S2b.
+- Post-route with delays: not simulated. The designs have one clock and
   one synchronised asynchronous input (UART RX); nextpnr's static timing
-  analysis (S3) checks every path, which a delay simulation cannot.
+  analysis (S3) checks every path, which a delay simulation cannot. This
+  changes with the Ethernet MAC (RGMII receive clock from the PHY): see
+  issue #22 for the clock-domain-crossing plan.
 
 ### Iteration rules
 
@@ -161,6 +167,8 @@ the MCU's load port.
 | Same MCU test on Verilator | S2 | ~11 s |
 | Same MCU test on the Yosys iCE40 netlist (lockstep) | S2n | ~17 s |
 | iCEstick top netlist boots from BRAM INIT, echoes at pin level | S2n | ~12 s |
+| i9 MCU ECP5 netlist: interrupt test in lockstep | S2n | ~30 s |
+| i9 top ECP5 netlist: full start-up hold, firmware from DP16KD INITVAL | S2n (`make ci`) | ~65 s |
 | Fits: LC budget, exactly 10 BRAMs, Fmax, all flip-flops named | S3 | ~16 s |
 | icebram swap equals direct synthesis | S3 (`make ci`) | ~16 s |
 

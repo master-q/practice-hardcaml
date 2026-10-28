@@ -12,14 +12,9 @@ module tb;
   wire [4:0] led;
   top dut (.clock(clock), .uart_rx(uart_rx), .uart_tx(uart_tx), .led(led));
 
-  // iCE40 flip-flops power up as 0. HardCaml v0.17 cannot express initial
-  // register values, so the registers without a reset start as X in a
-  // four-state simulator; give them the silicon's power-up value.
-  initial begin
-    dut.boot_count = 0;
-    dut.heartbeat = 0;
-    dut.mcu.por_count = 0;
-  end
+  // The registers without a reset (boot_count, heartbeat, mcu.por_count)
+  // get `initial ... = 0` from the generator (ip/mcu/gen, B-0023), so no
+  // power-up values are forced here: a missing one shows up as X.
 
   // Receiver: print each byte the MCU transmits.
   integer i;

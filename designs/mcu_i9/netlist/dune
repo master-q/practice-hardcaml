@@ -1,0 +1,5 @@
+(executable
+ (name main)
+ (libraries mcu mcu_i9 netlist_sim uart_bench hardcaml stdio)
+ (preprocess
+  (pps ppx_jane)))

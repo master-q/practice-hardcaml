@@ -98,7 +98,7 @@ Follows the usual HDL split between reusable IP and chip/board top levels
 | `bench/ref_cores/` | Reference cores (riscv-ice40 survey): area and Dhrystone, see docs/BENCHMARKS.md |
 | `models/rv32_model/` | RV32I/RV32E golden model (OCaml), MMIO hooks, tiny assembler |
 | `sw/` | Firmware (crt0, linker scripts, `mcu.h`, minimal libc, echo, Dhrystone) |
-| `testlib/` | Test helpers: ASCII waveforms, shared Verilator config; `testlib/netlist`: Yosys iCE40 netlist back into HardCaml (S2n) |
+| `testlib/` | Test helpers: ASCII waveforms, shared Verilator config; `testlib/netlist`: Yosys iCE40/ECP5 netlists back into HardCaml (S2n) |
 | `mk/icestick.mk`, `mk/ecp5.mk` | Shared board flows (iCE40: icepack/icebram; ECP5: ecppack/ecpbram) |
 | `scripts/` | Policy and S3 checks (`check_ascii.sh`, `check_names.sh`, `check_resources.sh`) |
 | `docs/WORKFLOW.md` | HDL landscape, AI-assisted workflows, and the workflow we adopt |

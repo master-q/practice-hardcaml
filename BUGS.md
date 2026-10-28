@@ -16,9 +16,10 @@ category, because they cost iterations just the same.
 | S0 | OCaml type check and HardCaml elaboration (width mismatch, combinational loop, undriven wire) | seconds |
 | S1 | Cyclesim expect tests, OCaml golden model (`make test`) | seconds |
 | S2 | Same benches on Verilator (`make verilate`) | tens of seconds |
-| S2n | Post-synthesis: the Yosys iCE40 netlist read back into HardCaml, S1 MCU bench in lockstep and the board top at pin level (`make netlist-sim`) | tens of seconds |
+| S2b | The generated board Verilog with firmware, four-state, pin-level UART, Icarus (`make board-sim`) | seconds to minutes |
+| S2n | Post-synthesis: the Yosys iCE40 / ECP5 netlist read back into HardCaml, S1 MCU bench in lockstep and the board tops at pin level (`make netlist-sim`, `make netlist-sim-i9`) | tens of seconds |
 | S3 | Yosys + nextpnr: resources, timing, naming (`make synth names`) | seconds |
-| S4 | iCEstick hardware (`make -C <project> prog`) | minutes, manual |
+| S4 | iCEstick (frozen) or Colorlight i9 hardware (`make mcu-prog`, `make i9-prog`) | minutes, manual |
 
 ## Analysis (audit of B-0001..B-0016, 2026-10-28)
 
@@ -83,6 +84,49 @@ No functional defect in the hardware itself has been found yet: the rv32e
 core and the MCU passed lockstep on their first run.
 
 ## Entries
+
+### B-0023: i9 start-up hold would be skipped: Yosys chose a power-up-1 flip-flop
+
+- Date: 2026-10-29
+- Project: designs/mcu_i9 (Mcu.Startup), ip/mcu/gen
+- Found at: S2n (ECP5 board-level netlist); Catchable at: S2n
+- Class: implicit assumption about silicon or tools (power-up state)
+- Symptom: in the i9 top-level netlist the MCU printed its first byte at
+  0.2 ms instead of after the 20 ms start-up hold (B-0014, B-0017).
+- Cause: the hold counter `boot_count` has no reset and relies on
+  powering up as 0. HardCaml v0.17 cannot state that, so the Verilog had
+  no initial value and Yosys was free to choose one: it implemented the
+  counter's msb (`mux2 msb msb (d+1)`) as a TRELLIS_FF with REGSET=SET,
+  which Yosys's own cell model starts at 1, ending the hold at once. RTL
+  simulation (Cyclesim, Verilator) and the Icarus board-sim cannot see
+  this; the board-sim testbench even forced the counter. The same holds
+  for the MCU's por_count and the LED counters. Not yet seen on a board
+  (the i9 has not arrived); on the chip the hold would most likely have
+  been missing.
+- Fix: the MCU generator emits `initial <reg> = 0;` for every register
+  without a reset (boot_count, por_count, and the boards' heartbeat /
+  blink), and fails if one is missing; Yosys then keeps power-up 0. The
+  iCEstick testbench no longer forces power-up values.
+- Regression: `make netlist-sim-i9` checks that the first byte comes after
+  min_hold_ms (it failed before the fix).
+
+### B-0022: DP16KD model put narrow-mode data on the wrong array bits
+
+- Date: 2026-10-29
+- Project: testlib/netlist (ECP5 cell models)
+- Found at: S1 (cell test with initial contents); Catchable at: S1
+- Class: our own checks (model of a vendor cell)
+- Symptom: the initial-content test of a 4-bit wide RAM failed: Yosys's
+  INITVAL had bits where the model expected none.
+- Cause: Yosys ships no behavioural DP16KD model; ours assumed the 16
+  data bits of the x1/x2/x4 modes are array bits 0-15. They are 0-7 and
+  9-16 (bit 8 is the first half's parity bit). Read/write tests without
+  initial contents cannot see this, because the mapping is consistent
+  with itself.
+- Fix: map narrow-mode bits around bit 8; derived from the INITVAL Yosys
+  produced for known contents.
+- Regression: testlib/netlist/test/test_ecp5_cells.ml (initial contents
+  in every width).
 
 ### B-0021: interrupt test firmware broke the MCU bench's typing protocol
 

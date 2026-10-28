@@ -3,6 +3,25 @@
 A dated log of the project, newest entry first. Each entry records what was
 done, what was learned, and the numbers measured that day.
 
+## 2026-10-29: post-synthesis stage for the ECP5 (S2n); B-0022, B-0023
+
+- docs/WORKFLOW.md and BUGS.md stage tables brought up to date (S2b was
+  missing in BUGS.md; S2n and S4 now name both boards).
+- testlib/netlist: ECP5 cell models (LUT4, PFUMX, L6MUX21, CCU2C,
+  TRELLIS_FF, TRELLIS_DPR16X4, DP16KD). Yosys has no DP16KD model, so the
+  cell test also reads back initial contents in every width; that found
+  B-0022 in our own model (narrow modes skip array bit 8).
+- i9 MCU netlist (2260 LUT4, 32 DP16KD): interrupt test in lockstep,
+  60k instructions, 342 interrupts, about 30 s (`make netlist-sim`).
+- i9 top netlist, full start-up hold, firmware only in DP16KD INITVAL
+  (`make netlist-sim-i9`, about 65 s, in CI). It found B-0023: Yosys had
+  mapped the hold counter's msb to a flip-flop that powers up as 1, so
+  the i9 would have skipped the B-0014 hold. Fix: the generator states
+  power-up 0 for every register without a reset. First byte now at
+  21.2 ms. i9 2688 TRELLIS_COMB.
+- Issue #22 filed: clock-domain-crossing plan for the Ethernet MAC
+  (RGMII); #19 got an addendum.
+
 ## 2026-10-29: dual register-file read (#4, step 1)
 
 - Core ~dual_read: a second register-file copy, read in Decode together

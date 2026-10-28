@@ -92,6 +92,17 @@ board-sim: $(EXE) $(SWSRCS)
 	vvp -n $(BUILD)/board_sim.vvp | tr -d '\r' | tee $(BUILD)/board_sim.log
 	@grep -q '^\[tb\] PASS' $(BUILD)/board_sim.log
 
+# Board-level post-synthesis stage (designs that provide netlist/, #20):
+# the generated Verilog with NETLIST_SIM_FIRMWARE in block RAM,
+# synthesised with synth_ecp5 and simulated as an ECP5 netlist in
+# HardCaml, full start-up hold, firmware only in the DP16KD INITVAL.
+NETLIST_SIM_FIRMWARE ?= $(FIRMWARE)
+netlist-sim: $(EXE) $(SWSRCS)
+	cd $(ROOT) && dune build ./$(NETLIST_SIM_FIRMWARE) ./$(PROJECT)/netlist/main.exe
+	@mkdir -p $(BUILD)/netlist_fw
+	$(EXE) verilog $(ROOT)/_build/default/$(NETLIST_SIM_FIRMWARE) $(BUILD)/netlist_fw > $(BUILD)/netlist_top.v
+	$(ROOT)/_build/default/$(PROJECT)/netlist/main.exe $(BUILD)/netlist_top.v $(BUILD)/netlist_sim
+
 test:
 	cd $(ROOT) && dune test ./$(PROJECT)
 
@@ -102,13 +113,13 @@ names: $(BUILD)/top.v
 	$(ROOT)/scripts/check_names.sh $<
 
 # Loading requires every S3 check and the board simulation to pass.
-prog: all names board-sim
+prog: all names board-sim $(if $(wildcard netlist),netlist-sim)
 	openFPGALoader -b colorlight-i9 $(BUILD)/top.bit
 
-flash: all names board-sim
+flash: all names board-sim $(if $(wildcard netlist),netlist-sim)
 	openFPGALoader -b colorlight-i9 -f $(BUILD)/top.bit
 
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all resources ecpbram-check board-sim test verilate names prog flash clean
+.PHONY: all resources ecpbram-check board-sim netlist-sim test verilate names prog flash clean

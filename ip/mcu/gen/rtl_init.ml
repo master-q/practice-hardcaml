@@ -74,12 +74,31 @@ let zero_register_file line =
     | None -> false)
 ;;
 
+(* Registers without a reset start from their power-up value: the start-up
+   hold counter, the MCU's power-on reset counter and the boards' LED
+   counters. HardCaml v0.17 cannot express initial register values, and
+   without one Yosys may map such a register onto a flip-flop that powers
+   up as 1 (on ECP5 a TRELLIS_FF with REGSET=SET; B-0023), so say "0" in
+   the Verilog. *)
+let power_up_zero = [ "boot_count"; "por_count" ]
+
+let zero_register names line =
+  List.exists names ~f:(fun name ->
+    let t = String.strip line in
+    let declares =
+      String.equal t ("reg " ^ name ^ ";")
+      || (String.is_prefix t ~prefix:"reg [" && String.is_suffix t ~suffix:("] " ^ name ^ ";"))
+    in
+    if declares then printf "    initial %s = 0;\n" name;
+    declares)
+;;
+
 (* EXPERIMENT=no-regfile-init (environment) omits it, to reproduce B-0014. *)
 let init_register_file =
   not (Option.equal String.equal (Sys.getenv "EXPERIMENT") (Some "no-regfile-init"))
 ;;
 
-let print_verilog (config : Mcu.Config.t) ~circuit ~dir ~prefix =
+let print_verilog (config : Mcu.Config.t) ~circuit ~no_reset ~dir ~prefix =
   let scope = Scope.create ~flatten_design:false () in
   let circuit = circuit scope in
   let buffer = Buffer.create 65536 in
@@ -92,10 +111,13 @@ let print_verilog (config : Mcu.Config.t) ~circuit ~dir ~prefix =
   let dir = Filename_unix.realpath dir in
   let inserted = ref 0 in
   let regfiles = ref 0 in
+  let zeroed = ref 0 in
+  let no_reset = power_up_zero @ no_reset in
   String.split_lines (Buffer.contents buffer)
   |> List.iter ~f:(fun line ->
     print_endline line;
     if init_register_file && zero_register_file line then Int.incr regfiles;
+    if zero_register no_reset line then Int.incr zeroed;
     for lane = 0 to lanes - 1 do
       let name = Mcu.ram_lane_name lane in
       let decl = Printf.sprintf "reg [7:0] %s[0:%d];" name (words - 1) in
@@ -107,19 +129,27 @@ let print_verilog (config : Mcu.Config.t) ~circuit ~dir ~prefix =
   if !inserted <> lanes
   then Printf.failwithf "expected %d RAM lane declarations, found %d" lanes !inserted ();
   let expected = if config.dual_read then 2 else 1 in
+  if !zeroed <> List.length no_reset
+  then
+    Printf.failwithf
+      "expected the registers %s, found %d of them"
+      (String.concat ~sep:", " no_reset)
+      !zeroed
+      ();
   if init_register_file && !regfiles <> expected
   then Printf.failwithf "expected %d register files, found %d" expected !regfiles ()
 ;;
 
-(* [circuit scope] builds the board's top-level circuit. *)
-let main config ~circuit =
+(* [circuit scope] builds the board's top-level circuit; [no_reset] names
+   its own registers without a reset (besides [power_up_zero]). *)
+let main ?(no_reset = []) config ~circuit =
   match Sys.get_argv () |> Array.to_list |> List.tl_exn with
   | [ "verilog"; firmware; dir ] ->
     write_hex ~dir ~prefix:"firmware" (firmware_contents config firmware);
-    print_verilog config ~circuit ~dir ~prefix:"firmware"
+    print_verilog config ~circuit ~no_reset ~dir ~prefix:"firmware"
   | [ "placeholder"; dir ] ->
     write_hex ~dir ~prefix:"placeholder" (placeholder_contents config);
-    print_verilog config ~circuit ~dir ~prefix:"placeholder"
+    print_verilog config ~circuit ~no_reset ~dir ~prefix:"placeholder"
   | [ "hex"; firmware; dir ] ->
     write_hex ~dir ~prefix:"firmware" (firmware_contents config firmware)
   | _ ->

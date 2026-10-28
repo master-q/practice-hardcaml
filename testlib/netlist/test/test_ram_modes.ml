@@ -54,9 +54,9 @@ struct
     { O.rdata; count }
   ;;
 
-  let run ~name =
+  let run ?arch ?(cell = "SB_RAM40_4K") ~name () =
     let module N = Netlist_sim.With_interface (I) (O) in
-    let m, fn = N.create ~dir:("build/" ^ name) ~name create in
+    let m, fn = N.create ?arch ~dir:("build/" ^ name) ~name create in
     let module Sim = Cyclesim.With_interface (I) (O) in
     let rtl = Sim.create create in
     let net = Sim.create fn in
@@ -81,10 +81,10 @@ struct
       then Int.incr mismatches
     done;
     let rams =
-      List.Assoc.find (Netlist_sim.cell_counts m) ~equal:String.equal "SB_RAM40_4K"
+      List.Assoc.find (Netlist_sim.cell_counts m) ~equal:String.equal cell
       |> Option.value ~default:0
     in
-    Stdio.printf "%s: SB_RAM40_4K=%d mismatches=%d\n" name rams !mismatches
+    Stdio.printf "%s: %s=%d mismatches=%d\n" name cell rams !mismatches
   ;;
 end
 
@@ -93,10 +93,10 @@ let%expect_test "every RAM port width, netlist vs RTL" =
   let module M1 = Make (struct let data_bits = 8 let addr_bits = 9 end) in
   let module M2 = Make (struct let data_bits = 4 let addr_bits = 10 end) in
   let module M3 = Make (struct let data_bits = 2 let addr_bits = 11 end) in
-  M0.run ~name:"ram_x16";
-  M1.run ~name:"ram_x8";
-  M2.run ~name:"ram_x4";
-  M3.run ~name:"ram_x2";
+  M0.run ~name:"ram_x16" ();
+  M1.run ~name:"ram_x8" ();
+  M2.run ~name:"ram_x4" ();
+  M3.run ~name:"ram_x2" ();
   [%expect {|
     ram_x16: SB_RAM40_4K=1 mismatches=0
     ram_x8: SB_RAM40_4K=1 mismatches=0
@@ -109,7 +109,7 @@ let%expect_test "negative: inverted LUTs are caught" =
   let module M = Make (struct let data_bits = 8 let addr_bits = 9 end) in
   Netlist_sim.Ice40_cells.invert_luts := true;
   Exn.protect
-    ~f:(fun () -> M.run ~name:"ram_x8_inverted")
+    ~f:(fun () -> M.run ~name:"ram_x8_inverted" ())
     ~finally:(fun () -> Netlist_sim.Ice40_cells.invert_luts := false);
   [%expect {| ram_x8_inverted: SB_RAM40_4K=1 mismatches=2983 |}]
 ;;
