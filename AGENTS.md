@@ -16,6 +16,12 @@ evidence; `docs/WORKFLOW.md` describes the method.
 
 ## Always-on rules
 
+- **License.** The repository is GPL-3.0-or-later, dual-licensed
+  commercially by the maintainer (README.md, `LICENSE`). Contributions
+  from anyone but the maintainer need the agreement in `CLA.md`; work by
+  coding agents at the maintainer's direction does not. Never copy code
+  in under a license that conflicts with this; third-party files keep
+  their own license file next to them (e.g. `sw/dhrystone/`).
 - **English and ASCII only.** Every file, file name, commit message, code
   comment and document in this repository is written in English using ASCII
   characters only, even when the maintainer talks to you in another

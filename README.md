@@ -70,3 +70,17 @@ session: [docs/BRINGUP_I9.md](docs/BRINGUP_I9.md).
   (and preferably `github.com` and `codeload.github.com`).
 
 Contributors and coding agents: read [AGENTS.md](AGENTS.md).
+
+## License
+
+practice-hardcaml is distributed under the
+[GNU General Public License version 3](LICENSE) or (at your option) any
+later version. Files that carry their own license, such as the Dhrystone
+sources in `sw/dhrystone/` (see `LICENSE.riscv-tests`), stay under it.
+
+Commercial licenses, for uses the GPLv3 does not fit, are available on
+request; please contact the maintainer, Kiwamu Okabe
+<kiwamu@metasepi.org>.
+
+Contributions are accepted under the
+[practice-hardcaml Contributor License Agreement](CLA.md).
